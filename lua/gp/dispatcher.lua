@@ -66,6 +66,10 @@ D.setup = function(opts)
 	logger.debug("dispatcher setup finished\n" .. vim.inspect(D))
 end
 
+D.is_openai_o1 = function(model)
+	return model:match("o1%-mini") or model:match("o1%-preview")
+end
+
 ---@param messages table
 ---@param model string | table
 ---@param provider string | nil
@@ -174,7 +178,7 @@ D.prepare_payload = function(messages, model, provider)
 		top_p = math.max(0, math.min(1, model.top_p or 1)),
 	}
 
-	if provider == "openai" and model.model:sub(1, 2) == "o1" then
+	if D.is_openai_o1(model.model) then
 		for i = #messages, 1, -1 do
 			if messages[i].role == "system" then
 				table.remove(messages, i)
@@ -264,7 +268,6 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 					end
 				end
 
-
 				if content and type(content) == "string" then
 					qt.response = qt.response .. content
 					handler(qid, content)
@@ -300,9 +303,19 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 				end
 				local raw_response = qt.raw_response
 				local content = qt.response
-				if qt.provider == 'openai' and content == "" and raw_response:match('choices') and raw_response:match("content") then
+				if
+					(qt.provider == "openai" or qt.provider == "openrouter")
+					and content == ""
+					and raw_response:match("choices")
+					and raw_response:match("content")
+				then
 					local response = vim.json.decode(raw_response)
-					if response.choices and response.choices[1] and response.choices[1].message and response.choices[1].message.content then
+					if
+						response.choices
+						and response.choices[1]
+						and response.choices[1].message
+						and response.choices[1].message.content
+					then
 						content = response.choices[1].message.content
 					end
 					if content and type(content) == "string" then
@@ -310,7 +323,6 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 						handler(qid, content)
 					end
 				end
-
 
 				if qt.response == "" then
 					logger.error(qt.provider .. " response is empty: \n" .. vim.inspect(qt.raw_response))
@@ -392,8 +404,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 		}
 	end
 
-	local temp_file = D.query_dir ..
-		"/" .. logger.now() .. "." .. string.format("%x", math.random(0, 0xFFFFFF)) .. ".json"
+	local temp_file = D.query_dir .. "/" .. logger.now() .. "." .. string.format("%x", math.random(0, 0xFFFFFF)) .. ".json"
 	helpers.table_to_file(payload, temp_file)
 
 	local curl_params = vim.deepcopy(D.config.curl_params or {})
