@@ -66,8 +66,10 @@ D.setup = function(opts)
 	logger.debug("dispatcher setup finished\n" .. vim.inspect(D))
 end
 
+---@param model string # The model name to check
+---@return boolean # Returns true if the model is an OpenAI O1 model, false otherwise
 D.is_openai_o1 = function(model)
-	return model:match("o1%-mini") or model:match("o1%-preview")
+	return model:match("^o1%-") ~= nil or model:match("^openai/o1%-") ~= nil
 end
 
 ---@param messages table
