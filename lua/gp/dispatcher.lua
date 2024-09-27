@@ -306,7 +306,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 				local raw_response = qt.raw_response
 				local content = qt.response
 				if
-					(qt.provider == "openai" or qt.provider == "openrouter")
+					(qt.provider == "openai" or qt.provider == "openrouter" or qt.provider == "copilot")
 					and content == ""
 					and raw_response:match("choices")
 					and raw_response:match("content")
