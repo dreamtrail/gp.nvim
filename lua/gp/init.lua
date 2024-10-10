@@ -1110,7 +1110,7 @@ M.chat_respond = function(params)
 			vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "" })
 
 			-- if topic is ?, then generate it
-			if headers.topic == "--fewfe?" then
+			if headers.topic == "?" then
 				local topic_messages = { { role = "system", content = M.config.chat_topic_gen_prompt } }
 				for _, message in ipairs(messages) do
 					if message.role ~= "system" then
