@@ -1075,7 +1075,7 @@ M.chat_respond = function(params)
 	local last_content_line = M.helpers.last_content_line(buf)
 	vim.api.nvim_buf_set_lines(buf, last_content_line, last_content_line, false, { "", agent_prefix .. agent_suffix, "" })
 	-- remove the fisrt	message if the content is empty for the system prompt
-	if	messages[1].content == "" then
+	if messages[1].content == "" then
 		table.remove(messages, 1)
 	end
 	-- call the model and write response
@@ -1111,21 +1111,24 @@ M.chat_respond = function(params)
 
 			-- if topic is ?, then generate it
 			if headers.topic == "?" then
-				-- insert last model response
-				table.insert(messages, { role = "assistant", content = qt.response })
-
-				-- ask model to generate topic/title for the chat
-				table.insert(messages, { role = "user", content = M.config.chat_topic_gen_prompt })
-
+				local topic_messages = { { role = "system", content = M.config.chat_topic_gen_prompt } }
+				for _, message in ipairs(messages) do
+					if message.role ~= "system" then
+						table.insert(topic_messages, message)
+						break
+					end
+				end
 				-- prepare invisible buffer for the model to write to
 				local topic_buf = vim.api.nvim_create_buf(false, true)
 				local topic_handler = M.dispatcher.create_handler(topic_buf, nil, 0, false, "", false)
+				local topic_gen_agent_name = M.config.chat_topic_gen_agent
+				local topic_gen_agent = M.get_chat_agent(topic_gen_agent_name)
 
 				-- call the model
 				M.dispatcher.query(
 					nil,
-					headers.provider or agent.provider,
-					M.dispatcher.prepare_payload(messages, headers.model or agent.model, headers.provider or agent.provider),
+					topic_gen_agent.provider,
+					M.dispatcher.prepare_payload(topic_messages, topic_gen_agent.model, topic_gen_agent.provider),
 					topic_handler,
 					vim.schedule_wrap(function()
 						-- get topic from invisible buffer
