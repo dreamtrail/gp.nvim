@@ -300,6 +300,7 @@ local config = {
 	-- chat topic generation prompt
 	chat_topic_gen_prompt = "Summarize the topic of our conversation above"
 		.. " in two or three words. Respond only with those words.",
+	chat_topic_gen_agent = "ChatGPT4o-Mini",
 	-- chat topic model (string with model name or table with model name and parameters)
 	-- explicitly confirm deletion of a chat file
 	chat_confirm_delete = true,
