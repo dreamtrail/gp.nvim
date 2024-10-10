@@ -132,6 +132,7 @@ M.setup = function(opts)
 
 	-- remove invalid agents
 	for name, agent in pairs(M.agents) do
+		agent.system_prompt = agent.system_prompt or ""
 		if type(agent) ~= "table" or agent.disable then
 			M.agents[name] = nil
 		elseif not agent.model or not agent.system_prompt then
@@ -1073,7 +1074,10 @@ M.chat_respond = function(params)
 	-- write assistant prompt
 	local last_content_line = M.helpers.last_content_line(buf)
 	vim.api.nvim_buf_set_lines(buf, last_content_line, last_content_line, false, { "", agent_prefix .. agent_suffix, "" })
-
+	-- remove the fisrt	message if the content is empty for the system prompt
+	if	messages[1].content == "" then
+		table.remove(messages, 1)
+	end
 	-- call the model and write response
 	M.dispatcher.query(
 		buf,
