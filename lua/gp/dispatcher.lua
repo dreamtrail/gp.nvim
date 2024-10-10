@@ -90,6 +90,9 @@ D.prepare_payload = function(messages, model, provider)
 			table.remove(messages, 1)
 		end
 		for i, message in ipairs(messages) do
+			if message.role == "system" then
+				messages[i].role = "user"
+			end
 			if message.role == "assistant" then
 				messages[i].role = "model"
 			end
