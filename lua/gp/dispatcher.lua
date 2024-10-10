@@ -152,13 +152,14 @@ D.prepare_payload = function(messages, model, provider)
 
 	if provider == "anthropic" then
 		local system = ""
+		if messages[1].role == "system" then
+			system = messages[1].content
+			table.remove(messages, 1)
+		end
 		local i = 1
 		while i < #messages do
 			if messages[i].role == "system" then
-				system = system .. messages[i].content .. "\n"
-				table.remove(messages, i)
-			else
-				i = i + 1
+				messages[i].role = "user"
 			end
 		end
 
