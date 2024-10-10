@@ -1110,19 +1110,24 @@ M.chat_respond = function(params)
 			vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "" })
 
 			-- if topic is ?, then generate it
-			if headers.topic == "?" then
+			if headers.topic == "--fewfe?" then
 				local topic_messages = { { role = "system", content = M.config.chat_topic_gen_prompt } }
 				for _, message in ipairs(messages) do
 					if message.role ~= "system" then
-						table.insert(topic_messages, message)
+						local msg = vim.deepcopy(message)
+						if msg.content and #msg.content > 2000 then
+							msg.content = msg.content:sub(1, 2000)
+						elseif msg.parts and #msg.parts[1].text > 2000 then
+							msg.parts[1].text = msg.parts[1].text:sub(1, 2000)
+						end
+						table.insert(topic_messages, msg)
 						break
 					end
 				end
 				-- prepare invisible buffer for the model to write to
 				local topic_buf = vim.api.nvim_create_buf(false, true)
 				local topic_handler = M.dispatcher.create_handler(topic_buf, nil, 0, false, "", false)
-				local topic_gen_agent_name = M.config.chat_topic_gen_agent
-				local topic_gen_agent = M.get_chat_agent(topic_gen_agent_name)
+				local topic_gen_agent = M.get_chat_agent(M.config.chat_topic_gen_agent)
 
 				-- call the model
 				M.dispatcher.query(
