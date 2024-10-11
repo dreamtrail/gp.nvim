@@ -1114,7 +1114,20 @@ M.chat_respond = function(params)
 				local topic_messages = { { role = "system", content = M.config.chat_topic_gen_prompt } }
 				for _, message in ipairs(messages) do
 					if message.role ~= "system" then
-						local msg = vim.deepcopy(message)
+						local msg = { role = message.role }
+						if message.content then
+							msg.content = message.content
+						elseif message.parts then
+							if message.parts.text then
+								msg.content = message.parts.text
+							elseif message.parts[1].text then
+								msg.content = message.parts[1].text
+							end
+						end
+						if not msg.content then
+							vim.api.nvim_err_writeln("Could not find content in message: " .. vim.inspect(message))
+							break
+						end
 						if msg.content and #msg.content > 2000 then
 							msg.content = msg.content:sub(1, 2000)
 						elseif msg.parts and #msg.parts[1].text > 2000 then
