@@ -84,15 +84,17 @@ D.prepare_payload = function(messages, model, provider)
 		}
 	end
 	if provider == "googleai" then
-		local system_prompt
-		if messages[1].role == "system" then
-			system_prompt = { parts = { text = messages[1].content } }
-			table.remove(messages, 1)
+		local system = ""
+		local j = 1
+		while j < #messages do
+			if messages[j].role == "system" then
+				system = system .. messages[j].content .. "\n"
+				table.remove(messages, j)
+			else
+				j = j + 1
+			end
 		end
 		for i, message in ipairs(messages) do
-			if message.role == "system" then
-				messages[i].role = "user"
-			end
 			if message.role == "assistant" then
 				messages[i].role = "model"
 			end
@@ -144,8 +146,8 @@ D.prepare_payload = function(messages, model, provider)
 			},
 			model = model.model,
 		}
-		if system_prompt then
-			payload.system_instruction = system_prompt
+		if system ~= "" then
+			payload.system_instruction = { parts = { text = system } }
 		end
 		return payload
 	end
