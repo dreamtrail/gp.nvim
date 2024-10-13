@@ -376,7 +376,21 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 	if provider == "copilot" then
 		headers = {
 			"-H",
+			"Content-Type: application/json",
+			"-H",
 			"editor-version: vscode/1.85.1",
+			"-H",
+			"copilot-integration-id: vscode-chat",
+			"-H",
+			"editor-plugin-version: copilot-chat/0.21.2024092501",
+			"-H",
+			"openai-intent: conversation-panel",
+			"-H",
+			"openai-organization: github-copilot",
+			"-H",
+			"user-agent: GitHubCopilotChat/0.21.2024092501",
+			"-H",
+			"x-github-api-version: 2023-07-07",
 			"-H",
 			"Authorization: Bearer " .. bearer,
 		}
