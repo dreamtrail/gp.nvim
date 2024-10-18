@@ -486,7 +486,7 @@ D.query = function(buf, provider, payload, handler, on_exit, callback, stream)
 	stream = (stream == nil) and false or stream
 
 	if not stream then
-		vim.notify("Querying...", vim.log.levels.INFO)
+		vim.notify("Querying " .. provider .. "...", vim.log.levels.INFO)
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 	end
 
