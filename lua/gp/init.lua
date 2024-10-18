@@ -956,7 +956,9 @@ M.chat_respond = function(params)
 	local file_name = vim.api.nvim_buf_get_name(buf)
 	local reason = M.not_chat(buf, file_name)
 	if reason then
-		M.logger.warning("File " .. vim.inspect(file_name) .. " does not look like a chat file: " .. vim.inspect(reason))
+		M.logger.warning(
+			"File " .. vim.inspect(file_name) .. " does not look like a chat file: " .. vim.inspect(reason)
+		)
 		return
 	end
 
@@ -1077,7 +1079,13 @@ M.chat_respond = function(params)
 
 	-- write assistant prompt
 	local last_content_line = M.helpers.last_content_line(buf)
-	vim.api.nvim_buf_set_lines(buf, last_content_line, last_content_line, false, { "", agent_prefix .. agent_suffix, "" })
+	vim.api.nvim_buf_set_lines(
+		buf,
+		last_content_line,
+		last_content_line,
+		false,
+		{ "", agent_prefix .. agent_suffix, "" }
+	)
 	-- remove the fisrt	message if the content is empty for the system prompt
 	if messages[1].content == "" then
 		table.remove(messages, 1)
@@ -1102,7 +1110,7 @@ M.chat_respond = function(params)
 				last_content_line,
 				last_content_line,
 				false,
-				{ "", "", M.config.chat_user_prefix, "" }
+				{ "", M.config.chat_user_prefix, "" }
 			)
 
 			-- delete whitespace lines at the end of the file
