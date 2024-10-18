@@ -436,7 +436,9 @@ M.prep_md = function(buf)
 	-- better text wrapping
 	vim.api.nvim_command("setlocal wrap linebreak")
 	-- auto save on TextChanged, InsertLeave
-	vim.api.nvim_command("autocmd TextChanged,InsertLeave <buffer=" .. buf .. "> silent! write")
+	-- vim.api.nvim_command("autocmd TextChanged,InsertLeave <buffer=" .. buf .. "> silent! write")
+	-- set autowrite off
+	vim.api.nvim_command("setlocal noautowrite")
 
 	-- register shortcuts local to this buffer
 	buf = buf or vim.api.nvim_get_current_buf()
@@ -804,9 +806,11 @@ M.new_chat = function(params, toggle, system_prompt, agent)
 	template = template:gsub("^%s*(.-)%s*$", "%1") .. "\n"
 
 	-- create chat file
-	vim.fn.writefile(vim.split(template, "\n"), filename)
+	-- vim.fn.writefile(vim.split(template, "\n"), filename)
 	local target = M.resolve_buf_target(params)
 	local buf = M.open_buf(filename, target, M._toggle_kind.chat, toggle)
+	-- write template to buffer
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(template, "\n"))
 
 	if params.range == 2 then
 		M.render.append_selection(params, cbuf, buf, M.config.template_selection)
@@ -1174,6 +1178,8 @@ M.chat_respond = function(params)
 				M.helpers.cursor_to_line(line, buf, win)
 			end
 			vim.cmd("doautocmd User GpDone")
+			-- save the file
+			vim.cmd("silent write")
 		end)
 	)
 end
