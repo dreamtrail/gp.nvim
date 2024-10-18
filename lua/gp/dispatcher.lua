@@ -212,7 +212,8 @@ end
 ---@param handler function # response handler
 ---@param on_exit function | nil # optional on_exit handler
 ---@param callback function | nil # optional callback handler
-local query = function(buf, provider, payload, handler, on_exit, callback)
+---@param stream boolean # streaming flag
+local query = function(buf, provider, payload, handler, on_exit, callback, stream)
 	-- make sure handler is a function
 	if type(handler) ~= "function" then
 		logger.error(
@@ -235,10 +236,12 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 		last_line = -1,
 		ns_id = nil,
 		ex_id = nil,
+		stream = stream, -- Store the stream flag
 	})
 
 	local out_reader = function()
 		local buffer = ""
+		local full_response = {} -- To accumulate response if not streaming
 
 		---@param lines_chunk string
 		local function process_lines(lines_chunk)
@@ -280,8 +283,12 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 				end
 
 				if content and type(content) == "string" then
-					qt.response = qt.response .. content
-					handler(qid, content)
+					if qt.stream then
+						qt.response = qt.response .. content
+						handler(qid, content)
+					else
+						table.insert(full_response, content)
+					end
 				end
 			end
 		end
@@ -306,12 +313,20 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 
 					process_lines(complete_lines)
 				end
-				-- chunk is nil when EOF is reached
+			-- chunk is nil when EOF is reached
 			else
 				-- if there's remaining data in the buffer, process it
 				if #buffer > 0 then
 					process_lines(buffer)
 				end
+
+				if not qt.stream then
+					-- Non-Streaming: Combine all accumulated response
+					local combined_response = table.concat(full_response, "")
+					qt.response = combined_response
+					handler(qid, combined_response) -- Optionally, trigger a final handler call
+				end
+
 				local raw_response = qt.raw_response
 				local content = qt.response
 				if
@@ -429,7 +444,12 @@ local query = function(buf, provider, payload, handler, on_exit, callback)
 		}
 	end
 
-	local temp_file = D.query_dir .. "/" .. logger.now() .. "." .. string.format("%x", math.random(0, 0xFFFFFF)) .. ".json"
+	local temp_file = D.query_dir
+		.. "/"
+		.. logger.now()
+		.. "."
+		.. string.format("%x", math.random(0, 0xFFFFFF))
+		.. ".json"
 	helpers.table_to_file(payload, temp_file)
 
 	local curl_params = vim.deepcopy(D.config.curl_params or {})
@@ -461,17 +481,30 @@ end
 ---@param handler function # response handler
 ---@param on_exit function | nil # optional on_exit handler
 ---@param callback function | nil # optional callback handler
-D.query = function(buf, provider, payload, handler, on_exit, callback)
+---@param stream boolean | nil # optional streaming flag, defaults to false
+D.query = function(buf, provider, payload, handler, on_exit, callback, stream)
+	stream = (stream == nil) and false or stream
+
+	if not stream then
+		vim.notify("Querying...", vim.log.levels.INFO)
+		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	end
+
 	if provider == "copilot" then
 		return vault.run_with_secret(provider, function()
 			vault.refresh_copilot_bearer(function()
-				query(buf, provider, payload, handler, on_exit, callback)
+				---@diagnostic disable-next-line: param-type-mismatch
+				query(buf, provider, payload, handler, on_exit, callback, stream)
 			end)
 		end)
 	end
 	vault.run_with_secret(provider, function()
-		query(buf, provider, payload, handler, on_exit, callback)
+		---@diagnostic disable-next-line: param-type-mismatch
+		query(buf, provider, payload, handler, on_exit, callback, stream)
 	end)
+	if not stream then
+		vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+	end
 end
 
 -- response handler
@@ -525,14 +558,18 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 
 		first_line = vim.api.nvim_buf_get_extmark_by_id(buf, ns_id, ex_id, {})[1]
 
-		-- clean previous response
-		local line_count = #vim.split(response, "\n")
-		vim.api.nvim_buf_set_lines(buf, first_line + finished_lines, first_line + line_count, false, {})
-
-		-- append new response
-		response = response .. chunk
-		helpers.undojoin(buf)
-
+		if qt.stream then
+			-- Streaming: update buffer per chunk
+			-- Clean previous response
+			local line_count = #vim.split(response, "\n")
+			vim.api.nvim_buf_set_lines(buf, first_line + finished_lines, first_line + line_count, false, {})
+			-- append new response
+			response = response .. chunk
+			helpers.undojoin(buf)
+		else
+			vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+			response = chunk
+		end
 		-- prepend prefix to each line
 		local lines = vim.split(response, "\n")
 		for i, l in ipairs(lines) do
@@ -544,14 +581,24 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 			table.insert(unfinished_lines, lines[i])
 		end
 
-		vim.api.nvim_buf_set_lines(buf, first_line + finished_lines, first_line + finished_lines, false, unfinished_lines)
+		vim.api.nvim_buf_set_lines(
+			buf,
+			first_line + finished_lines,
+			first_line + finished_lines,
+			false,
+			unfinished_lines
+		)
 
-		local new_finished_lines = math.max(0, #lines - 1)
-		for i = finished_lines, new_finished_lines do
-			vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
+		if qt.stream then
+			local new_finished_lines = math.max(0, #lines - 1)
+			for i = finished_lines, new_finished_lines do
+				vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
+			end
+			finished_lines = new_finished_lines
+		else
+			-- clear statusline
+			vim.notify("", vim.log.levels.INFO)
 		end
-		finished_lines = new_finished_lines
-
 		local end_line = first_line + #vim.split(response, "\n")
 		qt.first_line = first_line
 		qt.last_line = end_line - 1
