@@ -51,6 +51,10 @@ M.prompt_template = function(template, command, selection, filetype, filename)
 		end
 	end
 
+	if filename == nil or filename == "" then
+		filename = "untitled"
+	end
+
 	local key_value_pairs = {
 		["{{command}}"] = command,
 		["{{selection}}"] = selection,
