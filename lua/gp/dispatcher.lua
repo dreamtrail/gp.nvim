@@ -155,13 +155,20 @@ D.prepare_payload = function(messages, model, provider)
 	if provider == "anthropic" then
 		local system = ""
 		local i = 1
+		local total_length = 0
 		while i < #messages do
+			total_length = total_length + #messages[i].content
 			if messages[i].role == "system" then
 				system = system .. messages[i].content .. "\n"
 				table.remove(messages, i)
 			else
 				i = i + 1
 			end
+		end
+		-- Add cache_control to the last message if the total bytes of the messages is greater than 4096
+		-- 4096 is a safe minimum bet for 1000 tokens
+		if #messages > 1 and total_length > 4096 then
+			messages[#messages].cache_control = { type = "ephemeral" }
 		end
 
 		local payload = {
@@ -429,7 +436,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"-H",
 			"anthropic-version: 2023-06-01",
 			"-H",
-			"anthropic-beta: messages-2023-12-15",
+			"anthropic-beta: prompt-caching-2024-07-31",
 		}
 	elseif provider == "azure" then
 		headers = {
@@ -486,7 +493,8 @@ D.query = function(buf, provider, payload, handler, on_exit, callback, stream)
 	stream = (stream == nil) and false or stream
 
 	if not stream then
-		vim.notify("Querying " .. provider .. "...", vim.log.levels.INFO)
+		-- upper the first letter of provider
+		vim.notify("Querying " .. provider:gsub("^%l", string.upper) .. " ...", vim.log.levels.INFO)
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 	end
 
