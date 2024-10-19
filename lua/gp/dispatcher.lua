@@ -304,7 +304,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						table.insert(full_response, content)
 						total_length = total_length + #content
 						vim.schedule(function()
-							vim.api.nvim_echo({ { "Received " .. total_length .. " bytes" } }, false, {})
+							vim.api.nvim_echo({ { "Received " .. total_length .. " bytes", "Comment" } }, false, {})
 						end)
 					end
 				end
