@@ -566,18 +566,15 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 
 		first_line = vim.api.nvim_buf_get_extmark_by_id(buf, ns_id, ex_id, {})[1]
 
-		if qt.stream then
-			-- Streaming: update buffer per chunk
-			-- Clean previous response
-			local line_count = #vim.split(response, "\n")
-			vim.api.nvim_buf_set_lines(buf, first_line + finished_lines, first_line + line_count, false, {})
-			-- append new response
-			response = response .. chunk
-			helpers.undojoin(buf)
-		else
+		if not qt.stream then
 			vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-			response = chunk
 		end
+
+		local line_count = #vim.split(response, "\n")
+		vim.api.nvim_buf_set_lines(buf, first_line + finished_lines, first_line + line_count, false, {})
+		-- append new response
+		response = response .. chunk
+		helpers.undojoin(buf)
 		-- prepend prefix to each line
 		local lines = vim.split(response, "\n")
 		for i, l in ipairs(lines) do
