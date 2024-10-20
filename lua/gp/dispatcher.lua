@@ -157,18 +157,31 @@ D.prepare_payload = function(messages, model, provider)
 		local i = 1
 		local total_length = 0
 		while i < #messages do
-			total_length = total_length + #messages[i].content
 			if messages[i].role == "system" then
+				total_length = total_length + #messages[i].content
 				system = system .. messages[i].content .. "\n"
 				table.remove(messages, i)
 			else
 				i = i + 1
 			end
 		end
-		-- Add cache_control to the last message if the total bytes of the messages is greater than 4096
+		-- Add most to 2 cache_controls to the messages if the condition is met
 		-- 4096 is a safe minimum bet for 1000 tokens
-		if #messages > 1 and total_length > 4096 then
-			messages[#messages].cache_control = { type = "ephemeral" }
+		local max_cache_breaks = 1
+		if #messages > 1 then
+			total_length = total_length + #messages[1].content + #messages[2].content
+			if total_length > 4096 then
+				for j = 2, math.min(max_cache_breaks * 2, #messages), 2 do
+					messages[j] = {
+						role = messages[j].role,
+						content = {
+							type = "text",
+							text = messages[j].content,
+							cache_control = { type = "ephemeral" },
+						},
+					}
+				end
+			end
 		end
 
 		local payload = {
