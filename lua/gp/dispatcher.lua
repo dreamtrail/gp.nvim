@@ -175,9 +175,11 @@ D.prepare_payload = function(messages, model, provider)
 					messages[j] = {
 						role = messages[j].role,
 						content = {
-							type = "text",
-							text = messages[j].content,
-							cache_control = { type = "ephemeral" },
+							{
+								type = "text",
+								text = messages[j].content,
+								cache_control = { type = "ephemeral" },
+							},
 						},
 					}
 				end
