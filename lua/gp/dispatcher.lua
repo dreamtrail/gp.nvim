@@ -248,7 +248,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	if not stream then
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 		vim.schedule(function()
-			vim.api.nvim_echo({ { "Querying " .. provider:gsub("^%l", string.upper) .. " ...", "Comment" } }, false, {})
+			vim.api.nvim_echo({ { "Querying " .. provider:gsub("^%l", string.upper) .. " ...", "Normal" } }, false, {})
 		end)
 	end
 	tasker.set_query(qid, {
@@ -319,7 +319,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						table.insert(full_response, content)
 						total_length = total_length + #content
 						vim.schedule(function()
-							vim.api.nvim_echo({ { "Received " .. total_length .. " bytes", "Comment" } }, false, {})
+							vim.api.nvim_echo({ { "Received " .. total_length .. " bytes", "Normal" } }, false, {})
 						end)
 					end
 				end
