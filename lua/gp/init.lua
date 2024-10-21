@@ -1178,10 +1178,9 @@ M.chat_respond = function(params)
 						-- replace topic in current buffer
 						M.helpers.undojoin(buf)
 						vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
-						-- save the buffer
-						vim.schedule(function()
-							vim.cmd("silent write")
-						end)
+					end),
+					vim.schedule_wrap(function()
+						vim.cmd("silent! write")
 					end)
 				)
 			end
