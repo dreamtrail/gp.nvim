@@ -1180,7 +1180,7 @@ M.chat_respond = function(params)
 						vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
 					end),
 					vim.schedule_wrap(function()
-						vim.cmd("silent! write")
+						vim.cmd("silent write")
 					end)
 				)
 			end
