@@ -1179,18 +1179,18 @@ M.chat_respond = function(params)
 						M.helpers.undojoin(buf)
 						vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
 					end),
-					vim.schedule_wrap(function()
+					function()
 						vim.cmd("silent write")
-					end)
+					end
 				)
+			else
+				vim.cmd("silent write")
 			end
 			if not M.config.chat_free_cursor then
 				local line = vim.api.nvim_buf_line_count(buf)
 				M.helpers.cursor_to_line(line, buf, win)
 			end
 			vim.cmd("doautocmd User GpDone")
-			-- save the file
-			vim.cmd("silent write")
 		end)
 	)
 end
