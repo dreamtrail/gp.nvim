@@ -1141,7 +1141,18 @@ M.chat_respond = function(params)
 							break
 						end
 						if msg.content and #msg.content > 2000 then
-							msg.content = msg.content:sub(1, 2000)
+							local parts = vim.split(msg.content, "\n")
+							local truncated_content = ""
+							local total_length = 0
+							for _, part in ipairs(parts) do
+								local part_length = #part + 1 -- +1 for newline
+								if total_length + part_length > 2000 then
+									break
+								end
+								truncated_content = truncated_content .. part .. "\n"
+								total_length = total_length + part_length
+							end
+							msg.content = truncated_content
 						elseif msg.parts and #msg.parts[1].text > 2000 then
 							msg.parts[1].text = msg.parts[1].text:sub(1, 2000)
 						end
