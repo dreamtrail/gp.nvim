@@ -96,6 +96,18 @@ _H.get_buffer = function(file_name)
 	return nil
 end
 
+---@param str string # string to truncate
+_H.truncate_string_at_newline = function(str, max_length)
+	if #str > max_length then
+		str = str:sub(1, max_length)
+		local reversed_pos = string.reverse(str):find("\n")
+		if reversed_pos then
+			return string.sub(str, 1, max_length - reversed_pos)
+		end
+	end
+	return str
+end
+
 ---@return string # returns unique uuid
 _H.uuid = function()
 	local random = math.random
