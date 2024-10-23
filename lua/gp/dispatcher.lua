@@ -400,7 +400,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				-- optional callback handler
 				if type(callback) == "function" then
 					vim.schedule(function()
-						callback(qt.response)
+						callback(qt.response, qt.buf)
 					end)
 				end
 			end
