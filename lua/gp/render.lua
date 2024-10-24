@@ -56,7 +56,7 @@ M.prompt_template = function(template, command, selection, filetype, filename)
 	end
 
 	local key_value_pairs = {
-		["{{command}}"] = command,
+		["{{command}}"] = command or "",
 		["{{selection}}"] = selection,
 		["{{filetype}}"] = filetype,
 		["{{filename}}"] = filename,
