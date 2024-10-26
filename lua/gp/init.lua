@@ -767,6 +767,9 @@ M.new_chat = function(params, toggle, system_prompt, agent)
 	-- encode as json if model is a table
 	local model = ""
 	local provider = ""
+	if not agent then
+		agent = M.get_chat_agent()
+	end
 	if agent and agent.model and agent.provider then
 		model = agent.model
 		provider = agent.provider
