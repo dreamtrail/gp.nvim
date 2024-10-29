@@ -139,10 +139,10 @@ D.prepare_payload = function(messages, model, provider)
 				},
 			},
 			generationConfig = {
-				temperature = math.max(0, math.min(2, model.temperature or 1)),
-				maxOutputTokens = model.max_tokens or 8192,
-				topP = model.top_p or nil,
-				topK = model.top_k or nil,
+				temperature = model.temperature,
+				maxOutputTokens = model.max_tokens,
+				topP = model.top_p,
+				topK = model.top_k,
 			},
 			model = model.model,
 		}
@@ -188,32 +188,21 @@ D.prepare_payload = function(messages, model, provider)
 
 		local payload = {
 			model = model.model,
-			stream = true,
+			stream = model.stream or true,
 			messages = messages,
 			system = system,
-			max_tokens = model.max_tokens or 4096,
-			temperature = math.max(0, math.min(2, model.temperature or 1)),
-			top_p = model.top_p or nil,
+			max_tokens = model.max_tokens,
+			temperature = model.temperature,
+			top_p = model.top_p,
 		}
 		return payload
 	end
 
-	if provider == "copilot" and model.model == "gpt-4o" then
-		model.model = "gpt-4o-2024-08-06"
+	local output = vim.deepcopy(model)
+	if output.stream == nil then
+		output.stream = true
 	end
-
-	local output = {
-		model = model.model,
-		stream = true,
-		messages = messages,
-		max_tokens = model.max_tokens or 4096,
-		temperature = math.max(0, math.min(2, model.temperature or 1)),
-		top_p = model.top_p or nil,
-	}
-
-	if provider == "openrouter" and model.extra_body then
-		output.provider = model.extra_body.provider
-	end
+	output.messages = messages
 
 	if D.is_openai_o1(model.model) then
 		for i = #messages, 1, -1 do
