@@ -199,7 +199,7 @@ D.prepare_payload = function(messages, model, provider)
 	end
 
 	if provider == "copilot" and model.model == "gpt-4o" then
-		model.model = "gpt-4o-2024-05-13"
+		model.model = "gpt-4o-2024-08-06"
 	end
 
 	local output = {
@@ -210,6 +210,10 @@ D.prepare_payload = function(messages, model, provider)
 		temperature = math.max(0, math.min(2, model.temperature or 1)),
 		top_p = model.top_p or nil,
 	}
+
+	if provider == "openrouter" and model.extra_body then
+		output.provider = model.extra_body.provider
+	end
 
 	if D.is_openai_o1(model.model) then
 		for i = #messages, 1, -1 do
