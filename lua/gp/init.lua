@@ -453,11 +453,11 @@ end
 ---@return string | nil # reason for not being a chat or nil if it is a chat
 M.not_chat = function(buf, file_name)
 	file_name = vim.fn.resolve(file_name)
-	local chat_dir = vim.fn.resolve(M.config.chat_dir)
-
-	if not M.helpers.starts_with(file_name, chat_dir) then
-		return "resolved file (" .. file_name .. ") not in chat dir (" .. chat_dir .. ")"
-	end
+	-- local chat_dir = vim.fn.resolve(M.config.chat_dir)
+	--
+	-- if not M.helpers.starts_with(file_name, chat_dir) then
+	-- 	return "resolved file (" .. file_name .. ") not in chat dir (" .. chat_dir .. ")"
+	-- end
 
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 	if #lines < 5 then
