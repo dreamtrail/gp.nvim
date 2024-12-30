@@ -286,7 +286,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 
-				if qt.provider == "anthropic" and line ~= nil and line:match('"text":') then
+				if qt.provider == "anthropic" and line and line:match('"text":') then
 					if line:match("content_block_start") or line:match("content_block_delta") then
 						line = vim.json.decode(line)
 						if line.delta and line.delta.text then
@@ -369,6 +369,28 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						and response.choices[1].message.content
 					then
 						content = response.choices[1].message.content
+					end
+					if content and type(content) == "string" then
+						qt.response = qt.response .. content
+						handler(qid, content)
+					end
+				end
+
+				if qt.provider == "pplx" then
+					-- find "citations": ["..."] in the response
+					local citations = raw_response:match('"citations": %["(.-)"%]')
+					if citations then
+						-- split citations by '", "' to table
+						citations = vim.split(citations, '", "') or {}
+						-- add number for each citation from 1
+						for i, citation in ipairs(citations) do
+							citations[i] = i .. ". " .. citation
+						end
+						-- add '\nCitations:\n' to the beginning of the table
+						table.insert(citations, 1, "\n# Citations:")
+						-- join citations with newline
+						citations = table.concat(citations, "\n")
+						content = citations
 					end
 					if content and type(content) == "string" then
 						qt.response = qt.response .. content
