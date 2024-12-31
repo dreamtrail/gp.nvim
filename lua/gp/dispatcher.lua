@@ -387,7 +387,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							citations[i] = i .. ". " .. citation
 						end
 						-- add '\nCitations:\n' to the beginning of the table
-						table.insert(citations, 1, "\n# Citations:")
+						table.insert(citations, 1, "\n\n# Citations:")
 						-- join citations with newline
 						citations = table.concat(citations, "\n")
 						content = citations
