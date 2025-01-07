@@ -69,7 +69,7 @@ end
 ---@param model string # The model name to check
 ---@return boolean # Returns true if the model is an OpenAI O1 model, false otherwise
 D.is_openai_o1 = function(model)
-	return model:match("^o1%-") ~= nil or model:match("^openai/o1%-") ~= nil
+	return model:match("^o1%p?") ~= nil or model:match("^openai/o1%p?") ~= nil
 end
 
 ---@param messages table
@@ -441,17 +441,17 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"-H",
 			"Content-Type: application/json",
 			"-H",
-			"editor-version: vscode/1.85.1",
+			"editor-version: vscode/1.96.0-insider",
 			"-H",
 			"copilot-integration-id: vscode-chat",
 			"-H",
-			"editor-plugin-version: copilot-chat/0.21.2024092501",
+			"editor-plugin-version: copilot-chat/0.23.2024110601",
 			"-H",
 			"openai-intent: conversation-panel",
 			"-H",
 			"openai-organization: github-copilot",
 			"-H",
-			"user-agent: GitHubCopilotChat/0.21.2024092501",
+			"user-agent: GitHubCopilotChat/0.23.2024110601",
 			"-H",
 			"x-github-api-version: 2023-07-07",
 			"-H",
