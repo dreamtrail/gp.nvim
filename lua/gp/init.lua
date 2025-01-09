@@ -1183,11 +1183,15 @@ M.chat_respond = function(params)
 						vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
 					end),
 					function()
-						vim.cmd("silent write")
+						vim.pcall(function()
+							vim.cmd("silent write")
+						end)
 					end
 				)
 			else
-				vim.cmd("silent write")
+				vim.pcall(function()
+					vim.cmd("silent write")
+				end)
 			end
 			if not M.config.chat_free_cursor then
 				local line = vim.api.nvim_buf_line_count(buf)
