@@ -1183,13 +1183,13 @@ M.chat_respond = function(params)
 						vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
 					end),
 					function()
-						vim.pcall(function()
+						pcall(function()
 							vim.cmd("silent write")
 						end)
 					end
 				)
 			else
-				vim.pcall(function()
+				pcall(function()
 					vim.cmd("silent write")
 				end)
 			end
