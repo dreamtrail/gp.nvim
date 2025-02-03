@@ -209,6 +209,7 @@ D.prepare_payload = function(messages, model, provider)
 			messages[1].content = system_messages .. messages[1].content
 		end
 	end
+	model.reason = nil
 
 	return output
 end
