@@ -132,14 +132,13 @@ M.setup = function(opts)
 
 	-- remove invalid agents
 	for name, agent in pairs(M.agents) do
-		agent.system_prompt = agent.system_prompt or ""
 		if type(agent) ~= "table" or agent.disable then
 			M.agents[name] = nil
-		elseif not agent.model or not agent.system_prompt then
+		elseif not agent.model then
 			M.logger.warning(
 				"Agent "
 					.. name
-					.. " is missing model or system_prompt\n"
+					.. " is missing model\n"
 					.. "If you want to disable an agent, use: { name = '"
 					.. name
 					.. "', disable = true },"
@@ -1069,7 +1068,7 @@ M.chat_respond = function(params)
 	else
 		content = agent.system_prompt
 	end
-	if content:match("%S") then
+	if content and content:match("%S") then
 		-- make it multiline again if it contains escaped newlines
 		content = content:gsub("\\n", "\n")
 		messages[1] = { role = "system", content = content }
