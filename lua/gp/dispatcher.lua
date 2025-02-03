@@ -66,6 +66,10 @@ D.setup = function(opts)
 	logger.debug("dispatcher setup finished\n" .. vim.inspect(D))
 end
 
+D.is_openai_reason_model = function(model)
+	return model:match("^o%d+%p?") ~= nil or model:match("^openai/o%d+%p?") ~= nil
+end
+
 ---@param messages table
 ---@param model string | table
 ---@param provider string | nil
@@ -198,18 +202,12 @@ D.prepare_payload = function(messages, model, provider)
 	end
 	output.messages = messages
 
-	-- If it's a reason model, convert all the system messages to user messages by concatenating them and insert them to the first message.
-	if model.reason then
-		local system_messages = ""
-		while messages[1].role == "system" do
-			system_messages = system_messages .. messages[1].content .. "\n"
-			table.remove(messages, 1)
-		end
-		if system_messages ~= "" then
-			messages[1].content = system_messages .. messages[1].content
+	-- If it's a OpenAI reason model, we change the role from "system" to "developer"
+	if D.is_openai_reason_model(output.model) then
+		if messages[1].role == "system" then
+			messages[1].role = "developer"
 		end
 	end
-	model.reason = nil
 
 	return output
 end
