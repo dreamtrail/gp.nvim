@@ -66,12 +66,6 @@ D.setup = function(opts)
 	logger.debug("dispatcher setup finished\n" .. vim.inspect(D))
 end
 
----@param model string # The model name to check
----@return boolean # Returns true if the model is an OpenAI O1 model, false otherwise
-D.is_openai_o1 = function(model)
-	return model:match("^o1%p?") ~= nil or model:match("^openai/o1%p?") ~= nil
-end
-
 ---@param messages table
 ---@param model string | table
 ---@param provider string | nil
@@ -204,17 +198,16 @@ D.prepare_payload = function(messages, model, provider)
 	end
 	output.messages = messages
 
-	if D.is_openai_o1(model.model) then
-		for i = #messages, 1, -1 do
-			if messages[i].role == "system" then
-				table.remove(messages, i)
-			end
+	-- If it's a reason model, convert all the system messages to user messages by concatenating them and insert them to the first message.
+	if model.reason then
+		local system_messages = ""
+		while messages[1].role == "system" do
+			system_messages = system_messages .. messages[1].content .. "\n"
+			table.remove(messages, 1)
 		end
-		-- remove max_tokens, top_p, temperature for o1 models. https://platform.openai.com/docs/guides/reasoning/beta-limitations
-		output.max_tokens = nil
-		output.temperature = nil
-		output.top_p = nil
-		output.stream = false
+		if system_messages ~= "" then
+			messages[1].content = system_messages .. messages[1].content
+		end
 	end
 
 	return output
