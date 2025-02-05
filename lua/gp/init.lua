@@ -1156,7 +1156,7 @@ M.chat_respond = function(params)
 				local topic_handler = M.dispatcher.create_handler(topic_buf, nil, 0, false, "", false)
 				local topic_gen_agent = M.get_chat_agent(M.config.chat_topic_gen_agent)
 
-				-- call the model
+				-- call the model to generate the topic
 				M.dispatcher.query(
 					nil,
 					topic_gen_agent.provider,
@@ -1197,7 +1197,9 @@ M.chat_respond = function(params)
 				M.helpers.cursor_to_line(line, buf, win)
 			end
 			vim.cmd("doautocmd User GpDone")
-		end)
+		end),
+		nil,
+		M.config.chat_stream_response
 	)
 end
 
