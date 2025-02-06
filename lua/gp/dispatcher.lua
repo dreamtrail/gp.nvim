@@ -241,6 +241,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	end
 
 	local qid = helpers.uuid()
+	local is_deepseek_reasoner = payload.model == "deepseek-reasoner"
 	if not stream then
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 		vim.schedule(function()
@@ -267,6 +268,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		local buffer = ""
 		local full_response = {} -- To accumulate response if not streaming
 		local total_length = 0
+		local reasoning_length = 0
 
 		---@param lines_chunk string
 		local function process_lines(lines_chunk)
@@ -286,6 +288,25 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					line = vim.json.decode(line)
 					if line.choices and line.choices[1] and line.choices[1].delta and line.choices[1].delta.content then
 						content = line.choices[1].delta.content
+					end
+				end
+
+				if is_deepseek_reasoner then
+					if
+						line.choices
+						and line.choices[1]
+						and line.choices[1].delta
+						and line.choices[1].delta.reasoning_content
+					then
+						content = line.choices[1].delta.reasoning_content
+						local content_length = #content
+						if reasoning_length == 0 and type(content) == "string" then
+							content = "<think>" .. content
+						end
+						reasoning_length = reasoning_length + content_length
+					elseif content ~= "" and type(content) == "string" then
+						content = "</think>\n\n" .. content
+						is_deepseek_reasoner = false
 					end
 				end
 
@@ -339,7 +360,6 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					local complete_lines = buffer:sub(1, last_newline_pos - 1)
 					-- save the rest of the buffer for the next chunk
 					buffer = buffer:sub(last_newline_pos + 1)
-
 					process_lines(complete_lines)
 				end
 			-- chunk is nil when EOF is reached
