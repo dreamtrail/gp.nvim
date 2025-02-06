@@ -1199,7 +1199,7 @@ M.chat_respond = function(params)
 			vim.cmd("doautocmd User GpDone")
 		end),
 		nil,
-		M.config.chat_stream_response
+		M.config.chat_stream_response or agent.stream
 	)
 end
 
@@ -1632,6 +1632,7 @@ M.get_chat_agent = function(name)
 	local model = M.agents[name].model
 	local system_prompt = M.agents[name].system_prompt
 	local provider = M.agents[name].provider
+	local stream = M.agents[name].stream
 	M.logger.debug("getting chat agent: " .. name)
 	return {
 		cmd_prefix = cmd_prefix,
@@ -1639,6 +1640,7 @@ M.get_chat_agent = function(name)
 		model = model,
 		system_prompt = system_prompt,
 		provider = provider,
+		stream = stream,
 	}
 end
 
