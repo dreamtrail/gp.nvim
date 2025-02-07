@@ -305,4 +305,29 @@ _H.create_user_command = function(cmd_name, cmd_func, completion, desc)
 	})
 end
 
+---@param file_name string # name of the file
+---@return string # returns mime type of the file
+_H.guess_mime_type = function(file_name)
+	local mime_types = {
+		txt = "text/plain",
+		html = "text/html",
+		htm = "text/html",
+		css = "text/css",
+		js = "text/javascript",
+		json = "application/json",
+		png = "image/png",
+		jpg = "image/jpeg",
+		jpeg = "image/jpeg",
+		gif = "image/gif",
+		bmp = "image/bmp",
+		tiff = "image/tiff",
+		svg = "image/svg+xml",
+		pdf = "application/pdf",
+		mp3 = "audio/mpeg",
+		wav = "audio/wav",
+	}
+	local ext = file_name:match("%.([^%.]+)$") or ""
+	return mime_types[ext:lower()] or "application/octet-stream"
+end
+
 return _H
