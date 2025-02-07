@@ -267,6 +267,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	local out_reader = function()
 		local buffer = ""
 		local full_response = {} -- To accumulate response if not streaming
+		local start_time = os.time()
 		local total_length = 0
 		local total_reasoning_length = 0
 
@@ -337,7 +338,9 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						table.insert(full_response, content)
 						total_length = total_length + #content
 						vim.schedule(function()
-							vim.api.nvim_echo({ { "Received " .. total_length .. " bytes", "Normal" } }, false, {})
+							local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
+							local msg = "Received " .. total_length .. " / " .. speed .. " Bytes/s"
+							vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
 						end)
 					end
 				end
