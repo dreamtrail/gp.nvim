@@ -304,7 +304,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 									total_reasoning_length = total_reasoning_length + len
 								end
 							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
-								content = content .. "</think>\n\n"
+								content = "</think>\n\n" + content
 								is_deepseek_reasoner = false
 							end
 						end
