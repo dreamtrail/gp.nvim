@@ -268,7 +268,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		local buffer = ""
 		local full_response = {} -- To accumulate response if not streaming
 		local total_length = 0
-		local reasoning_length = 0
+		local total_reasoning_length = 0
 
 		---@param lines_chunk string
 		local function process_lines(lines_chunk)
@@ -286,27 +286,29 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				local content = ""
 				if line:match("choices") and line:match("delta") and line:match("content") then
 					line = vim.json.decode(line)
-					if line.choices and line.choices[1] and line.choices[1].delta and line.choices[1].delta.content then
-						content = line.choices[1].delta.content
-					end
-				end
-
-				if is_deepseek_reasoner then
-					if
-						line.choices
-						and line.choices[1]
-						and line.choices[1].delta
-						and line.choices[1].delta.reasoning_content
-					then
-						content = line.choices[1].delta.reasoning_content
-						local content_length = #content
-						if reasoning_length == 0 and type(content) == "string" then
-							content = "<think>" .. content
+					logger.debug("line: " .. vim.inspect(line))
+					if line.choices and line.choices[1] and line.choices[1].delta then
+						if line.choices[1].delta.content then
+							content = line.choices[1].delta.content
 						end
-						reasoning_length = reasoning_length + content_length
-					elseif content ~= "" and type(content) == "string" then
-						content = "</think>\n\n" .. content
-						is_deepseek_reasoner = false
+						if is_deepseek_reasoner then
+							if type(content) ~= "string" or content == "" then
+								local reasoning_content = line.choices[1].delta.reasoning_content
+								if type(reasoning_content) == "string" and reasoning_content ~= "" then
+									local len = #reasoning_content
+									if total_reasoning_length == 0 and len > 0 then
+										content = "<think>" .. reasoning_content
+									else
+										content = reasoning_content
+									end
+									total_reasoning_length = total_reasoning_length + len
+								end
+							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
+								content = content .. "</think>\n\n"
+								total_reasoning_length = 0
+								is_deepseek_reasoner = false
+							end
+						end
 					end
 				end
 
