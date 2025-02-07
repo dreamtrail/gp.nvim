@@ -297,7 +297,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								if type(reasoning_content) == "string" and reasoning_content ~= "" then
 									local len = #reasoning_content
 									if total_reasoning_length == 0 and len > 0 then
-										content = "<think>" .. reasoning_content
+										content = "<think>\n" .. reasoning_content
 									else
 										content = reasoning_content
 									end
