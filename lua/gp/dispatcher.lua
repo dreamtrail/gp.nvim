@@ -66,8 +66,103 @@ D.setup = function(opts)
 	logger.debug("dispatcher setup finished\n" .. vim.inspect(D))
 end
 
+---@param model string
+---@return boolean
 D.is_openai_reason_model = function(model)
 	return model:match("^o%d+%p?") ~= nil or model:match("^openai/o%d+%p?") ~= nil
+end
+
+---@param message string
+---@return table
+--- Extracts attachment from message: syntax: attach(/location_of_attachment)
+--- Need to Handle multiple attachments in the same message
+D.get_attchments_from_message = function(message)
+	local attachments = {}
+	if not message then
+		return attachments
+	end
+	for attachment in message:gmatch("@attach%(([^)]+)%)") do
+		-- Check if the attachment exists
+		attachment = vim.fn.expand(attachment)
+		if vim.fn.filereadable(attachment) == 1 then
+			table.insert(attachments, attachment)
+		else
+			logger.error("Attachment not found: " .. attachment)
+			-- vim.schedule(function()
+			-- 	vim.api.nvim_err_writeln("Attachment not found: " .. attachment)
+			-- end)
+		end
+	end
+	return attachments
+end
+
+---@param message table
+---@param provider string
+---@return table | nil
+D.attach_files_in_message = function(message, provider)
+	local content = nil
+	if message.parts and message.parts[1] and message.parts[1].text then
+		content = message.parts[1].text
+	elseif message.content then
+		if type(message.content) == "string" then
+			content = message.content
+		elseif type(message.content) == "table" then
+			content = message.content[1].text
+		end
+	end
+	if not content then
+		return nil
+	end
+	local attachments = D.get_attchments_from_message(content)
+	local data
+	if #attachments == 0 then
+		return nil
+	end
+	local return_message = vim.deepcopy(message)
+	for _, file in ipairs(attachments) do
+		-- name = vim.fn.fnamemodify(file, ":t") -- get the basename
+		local f = io.open(file, "rb")
+		if not f then
+			vim.schedule(function()
+				vim.api.nvim_err_writeln("Attachment not found: " .. file)
+			end)
+		else
+			data = f:read("*all")
+			f:close()
+			local b64_data = vim.base64.encode(data)
+			local mime_type = helpers.guess_mime_type(file)
+			local inline_data
+			if message.parts then
+				inline_data = {
+					data = b64_data,
+					mime_type = mime_type,
+				}
+				-- append inline_data to the parts table at the end
+				return_message.parts[#return_message.parts + 1] = { inline_data = inline_data }
+			elseif message.content then
+				if provider == "anthropic" then
+					inline_data = {
+						type = "image",
+						source = {
+							type = "base64",
+							media_type = mime_type,
+							data = b64_data,
+						},
+					}
+				else
+					inline_data = {
+						type = "image_url",
+						url = "data:" .. mime_type .. ";base64," .. b64_data,
+					}
+				end
+				if type(message.content) == "string" then
+					return_message.content = { type = "text", text = message.content }
+				end
+				return_message.content[#return_message.content + 1] = inline_data
+			end
+		end
+	end
+	return return_message
 end
 
 ---@param messages table
@@ -93,6 +188,7 @@ D.prepare_payload = function(messages, model, provider)
 	end
 
 	if provider == "googleai" then
+		-- extract system messages and add them to the system_instruction field
 		local system = ""
 		local j = 1
 		while j < #messages do
@@ -103,6 +199,7 @@ D.prepare_payload = function(messages, model, provider)
 				j = j + 1
 			end
 		end
+		-- convert messages to googleai format
 		for i, message in ipairs(messages) do
 			if message.role == "assistant" then
 				messages[i].role = "model"
@@ -116,6 +213,7 @@ D.prepare_payload = function(messages, model, provider)
 				messages[i].content = nil
 			end
 		end
+		-- combine consecutive messages with the same role
 		local i = 1
 		while i < #messages do
 			if messages[i].role == messages[i + 1].role then
@@ -125,6 +223,16 @@ D.prepare_payload = function(messages, model, provider)
 				table.remove(messages, i + 1)
 			else
 				i = i + 1
+			end
+		end
+		-- attach files to messages
+		local return_message
+		for k, message in ipairs(messages) do
+			if message.role == "user" then
+				return_message = D.attach_files_in_message(message, provider)
+				if return_message ~= nil then
+					messages[k] = return_message
+				end
 			end
 		end
 		local payload = {
@@ -339,7 +447,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						total_length = total_length + #content
 						vim.schedule(function()
 							local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
-							local msg = "Received " .. total_length .. " / " .. speed .. " Bytes/s"
+							local msg = "Received: " .. total_length .. "B (" .. speed .. " B/s)"
 							vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
 						end)
 					end
