@@ -351,7 +351,10 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	end
 
 	local qid = helpers.uuid()
-	local is_deepseek_reasoner = (payload.model == "deepseek-reasoner" or payload.model == "deepseek-r1")
+	-- local is_deepseek_reasoner = (payload.model == "deepseek-reasoner" or payload.model == "deepseek-r1")
+	local is_deepseek_reasoner = (
+		payload.model:find("deepseek") and (payload.model:find("reasoner") or payload.model:find("r1"))
+	)
 	if not stream then
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 		vim.schedule(function()
