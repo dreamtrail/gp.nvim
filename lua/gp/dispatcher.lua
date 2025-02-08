@@ -140,9 +140,11 @@ D.attach_files_in_message = function(message, provider)
 				-- append inline_data to the parts table at the end
 				return_message.parts[#return_message.parts + 1] = { inline_data = inline_data }
 			elseif message.content then
+				-- if mine type starts with image, then it is an image else it is a file
+				local type = mime_type:find("image") and "image" or "document"
 				if provider == "anthropic" then
 					inline_data = {
-						type = "image",
+						type = type,
 						source = {
 							type = "base64",
 							media_type = mime_type,
@@ -447,7 +449,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						total_length = total_length + #content
 						vim.schedule(function()
 							local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
-							local msg = "Received: " .. total_length .. "B (" .. speed .. " B/s)"
+							local msg = "Received: " .. total_length .. " B (" .. speed .. " B/s)"
 							vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
 						end)
 					end
