@@ -184,7 +184,7 @@ D.prepare_payload = function(messages, model, provider)
 	if model_name:find("deepseek") and (model_name:find("r1") or model_name:find("reasoner")) then
 		for i = 1, #messages do
 			if messages[i].role == "assistant" then
-				messages[i].content = messages[i].content:gsub("^<think>.*</think>\n*", "")
+				messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
 			end
 		end
 	end
