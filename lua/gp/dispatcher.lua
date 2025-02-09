@@ -631,6 +631,11 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"Authorization: Bearer " .. bearer,
 		}
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
+	elseif provider == "github" then
+		headers = {
+			"-H",
+			"api-key: " .. bearer,
+		}
 	else -- default to openai compatible headers
 		headers = {
 			"-H",
