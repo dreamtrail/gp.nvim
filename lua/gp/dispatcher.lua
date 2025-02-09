@@ -622,7 +622,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	elseif provider == "azure" then
 		headers = {
 			"-H",
-			"api-key: " .. bearer,
+			"Authorization: Bearer " .. bearer,
 		}
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
 	else -- default to openai compatible headers
