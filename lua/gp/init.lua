@@ -1199,7 +1199,7 @@ M.chat_respond = function(params)
 			vim.cmd("doautocmd User GpDone")
 		end),
 		nil,
-		M.config.chat_stream_response or agent.stream
+		agent.stream ~= nil and agent.stream or M.config.chat_stream_response
 	)
 end
 
@@ -1987,7 +1987,8 @@ M.Prompt = function(params, target, agent, template, prompt, whisper, callback)
 				on_exit(qid)
 				vim.cmd("doautocmd User GpDone")
 			end),
-			callback
+			callback,
+			agent.stream ~= nil and agent.stream or M.config.command_stream_response
 		)
 	end
 
