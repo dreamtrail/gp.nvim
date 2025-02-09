@@ -411,6 +411,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								if type(reasoning_content) == "string" and reasoning_content ~= "" then
 									local len = #reasoning_content
 									if total_reasoning_length == 0 and len > 0 then
+										reasoning_content = reasoning_content:gsub("^[\n]+", "")
 										content = "<think>\n" .. reasoning_content
 									else
 										content = reasoning_content
@@ -418,6 +419,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 									total_reasoning_length = total_reasoning_length + len
 								end
 							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
+								content = content:gsub("^[\n]+", "")
 								content = "</think>\n\n" .. content
 								is_deepseek_reasoner = false
 							end
