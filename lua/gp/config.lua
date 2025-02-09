@@ -321,8 +321,10 @@ local config = {
 	chat_free_cursor = false,
 	-- use prompt buftype for chats (:h prompt-buffer)
 	chat_prompt_buf_type = false,
-	-- show response in stream or all at once
+	-- show response in stream for chat mode
 	chat_stream_response = false,
+	-- show response in stream for command mode
+	command_stream_response = false,
 
 	-- how to display GpChatToggle or GpContext
 	---@type "popup" | "split" | "vsplit" | "tabnew"
