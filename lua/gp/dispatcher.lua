@@ -72,6 +72,13 @@ D.is_openai_reason_model = function(model)
 	return model:match("^o%d+%p?") ~= nil or model:match("^openai/o%d+%p?") ~= nil
 end
 
+---@param model string
+---@return integer | nil
+D.is_deepseek_reason_model = function(model)
+	model = model:lower()
+	return model:find("deepseek") and (model:find("reasoner") or model:find("r1"))
+end
+
 ---@param message string
 ---@return table
 --- Extracts attachment from message: syntax: attach(/location_of_attachment)
@@ -180,8 +187,7 @@ D.prepare_payload = function(messages, model, provider)
 	end
 
 	-- Remove <think> tags from deepseek models
-	local model_name = model.model:lower()
-	if model_name:find("deepseek") and (model_name:find("r1") or model_name:find("reasoner")) then
+	if D.is_deepseek_reason_model(model.model) then
 		for i = 1, #messages do
 			if messages[i].role == "assistant" then
 				messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
@@ -351,9 +357,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	end
 
 	local qid = helpers.uuid()
-	-- local is_deepseek_reasoner = (payload.model == "deepseek-reasoner" or payload.model == "deepseek-r1")
-	local model_name = payload.model:lower()
-	local is_deepseek_reasoner = model_name:find("deepseek") and (model_name:find("reasoner") or model_name:find("r1"))
+	local is_deepseek_reasoner = D.is_deepseek_reason_model(payload.model)
 
 	if not stream then
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
@@ -421,7 +425,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
 								content = "</think>\n\n" .. content
-								is_deepseek_reasoner = false
+								is_deepseek_reasoner = nil
 							end
 						end
 					end
