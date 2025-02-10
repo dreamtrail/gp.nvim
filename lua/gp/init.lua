@@ -1018,6 +1018,14 @@ M.chat_respond = function(params)
 		agent_name = headers.model
 	end
 
+	-- try to vim.json.decode role if it is start and end with double quotes
+	if headers.role and headers.role:match('^".*"$') then
+		local success, decoded_role = pcall(vim.json.decode, headers.role)
+		if success then
+			headers.role = decoded_role
+		end
+	end
+
 	if headers.role and headers.role:match("%S") then
 		---@diagnostic disable-next-line: cast-local-type
 		agent_name = agent_name .. " & custom role"
