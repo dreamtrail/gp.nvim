@@ -1100,6 +1100,9 @@ M.chat_respond = function(params)
 	if messages[1].content == "" then
 		table.remove(messages, 1)
 	end
+
+	-- save the buffer before sending the request
+	vim.cmd("silent write")
 	-- call the model and write response
 	M.dispatcher.query(
 		buf,
