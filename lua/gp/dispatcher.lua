@@ -424,7 +424,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								end
 							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
-								content = "</think>\n\n" .. content
+								content = "\n</think>\n\n" .. content
 								is_deepseek_reasoner = nil
 							end
 						end
