@@ -274,6 +274,14 @@ D.prepare_payload = function(messages, model, provider)
 		if system ~= "" then
 			payload.system_instruction = { parts = { text = system } }
 		end
+		-- add google search if model.search is true
+		if model.search then
+			payload.tools = {
+				{
+					google_search = vim.empty_dict(),
+				},
+			}
+		end
 		return payload
 	end
 
