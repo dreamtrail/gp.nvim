@@ -63,6 +63,45 @@ _H.autocmd = function(events, buffers, callback, gid)
 	end
 end
 
+--- Move the current buffer to the trash
+_H.move_to_trash = function(file_path)
+	if file_path == "" then
+		vim.notify("No file name", vim.log.levels.ERROR)
+		return
+	end
+
+	---@diagnostic disable-next-line: undefined-field
+	local os_name = vim.loop.os_uname().sysname
+	local cmd
+
+	if os_name:lower():find("windows") then
+		cmd = string.format(
+			'powershell -Command "& {Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(\\"%s\\", \\"OnlyErrorDialogs\\", \\"SendToRecycleBin\\");}"',
+			file_path:gsub("\\", "\\\\")
+		)
+	else
+		if vim.fn.executable("trash") == 1 then
+			cmd = string.format('trash "%s"', file_path)
+		else
+			-- delete directly if trash-cli is not installed
+			os.remove(file_path)
+			-- vim.notify("trash-cli not installed", vim.log.levels.ERROR)
+			return
+		end
+	end
+
+	vim.fn.jobstart(cmd, {
+		on_exit = function()
+			vim.schedule(function()
+				-- vim.api.nvim_buf_delete(0, { force = true })
+				-- get the file name from the path and display it in the notification, need to compatible with windows and linux path
+				local file_name = file_path:match("([^/\\]+)$")
+				vim.notify("Moved to trash: " .. file_name, vim.log.levels.INFO)
+			end)
+		end,
+	})
+end
+
 ---@param file_name string # name of the file for which to delete buffers
 _H.delete_buffer = function(file_name)
 	-- iterate over buffer list and close all buffers with the same name
@@ -80,7 +119,8 @@ _H.delete_file = function(file)
 		return
 	end
 	_H.delete_buffer(file)
-	os.remove(file)
+	_H.move_to_trash(file)
+	-- os.remove(file)
 end
 
 ---@param file_name string # name of the file for which to get buffer
