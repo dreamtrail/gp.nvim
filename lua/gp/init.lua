@@ -1527,16 +1527,14 @@ M.cmd.ChatFinder = function()
 
 			-- delete without confirmation
 			if not M.config.chat_confirm_delete then
-				M.helpers.delete_file(file)
-				refresh_picker()
+				M.helpers.delete_file(file, refresh_picker)
 				return
 			end
 
 			-- ask for confirmation
 			vim.ui.input({ prompt = "Delete " .. file .. "? [y/N] " }, function(input)
 				if input and input:lower() == "y" then
-					M.helpers.delete_file(file)
-					refresh_picker()
+					M.helpers.delete_file(file, refresh_picker)
 				end
 			end)
 		end
