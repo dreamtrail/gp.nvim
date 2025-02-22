@@ -64,7 +64,7 @@ _H.autocmd = function(events, buffers, callback, gid)
 end
 
 --- Move the current buffer to the trash
-_H.move_to_trash = function(file_path)
+_H.move_to_trash = function(file_path, callback)
 	if file_path == "" then
 		vim.notify("No file name", vim.log.levels.ERROR)
 		return
@@ -97,6 +97,9 @@ _H.move_to_trash = function(file_path)
 				-- get the file name from the path and display it in the notification, need to compatible with windows and linux path
 				local file_name = file_path:match("([^/\\]+)$")
 				vim.notify("Moved to trash: " .. file_name, vim.log.levels.INFO)
+				if callback then
+					callback()
+				end
 			end)
 		end,
 	})
@@ -113,13 +116,13 @@ _H.delete_buffer = function(file_name)
 end
 
 ---@param file string | nil # name of the file to delete
-_H.delete_file = function(file)
+_H.delete_file = function(file, callback)
 	logger.debug("deleting file: " .. vim.inspect(file))
 	if file == nil then
 		return
 	end
 	_H.delete_buffer(file)
-	_H.move_to_trash(file)
+	_H.move_to_trash(file, callback)
 	-- os.remove(file)
 end
 
