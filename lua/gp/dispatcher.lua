@@ -664,7 +664,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"-H",
 			"anthropic-version: 2023-06-01",
 			"-H",
-			"anthropic-beta: prompt-caching-2024-07-31",
+			"anthropic-beta: output-128k-2025-02-19",
 		}
 	elseif provider == "azure" then
 		headers = {
