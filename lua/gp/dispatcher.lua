@@ -328,6 +328,12 @@ D.prepare_payload = function(messages, model, provider)
 			temperature = model.temperature,
 			top_p = model.top_p,
 		}
+		if model.budget_tokens then
+			payload.thinking = {
+				type = "enabled",
+				budget_tokens = model.budget_tokens,
+			}
+		end
 		return payload
 	end
 
@@ -366,6 +372,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 
 	local qid = helpers.uuid()
 	local is_deepseek_reasoner = D.is_deepseek_reason_model(payload.model)
+	local is_anthropic_reasoner = provider == "anthropic" and payload.thinking ~= nil
 
 	if not stream then
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
@@ -439,14 +446,40 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 
-				if qt.provider == "anthropic" and line and line:match('"text":') then
-					if line:match("content_block_start") or line:match("content_block_delta") then
-						line = vim.json.decode(line)
-						if line.delta and line.delta.text then
-							content = line.delta.text
+				if qt.provider == "anthropic" and line then
+					if line:match('"text":') then
+						if line:match("content_block_start") or line:match("content_block_delta") then
+							line = vim.json.decode(line)
+							if line.delta and line.delta.text then
+								content = line.delta.text
+							end
+							if line.content_block and line.content_block.text then
+								content = line.content_block.text
+							end
 						end
-						if line.content_block and line.content_block.text then
-							content = line.content_block.text
+					end
+					if is_anthropic_reasoner then
+						if line:match('"thinking":') then
+							if line:match("content_block_start") or line:match("content_block_delta") then
+								line = vim.json.decode(line)
+								if line.delta and line.delta.thinking then
+									content = line.delta.thinking
+								end
+								if line.content_block and line.content_block.thinking then
+									content = line.content_block.thinking
+								end
+							end
+							if content and type(content) == "string" then
+								local len = #content
+								if total_reasoning_length == 0 and len > 0 then
+									content = content:gsub("^[\n]+", "")
+									content = "<think>\n" .. content
+									total_reasoning_length = total_reasoning_length + len
+								end
+							end
+						elseif line:match("content_block_stop") and total_reasoning_length > 0 then
+							content = "\n</think>\n\n"
+							is_anthropic_reasoner = false
 						end
 					end
 				end
