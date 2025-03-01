@@ -328,10 +328,10 @@ D.prepare_payload = function(messages, model, provider)
 			temperature = model.temperature,
 			top_p = model.top_p,
 		}
-		if model.budget_tokens then
+		if model.reason_tokens then
 			payload.thinking = {
 				type = "enabled",
-				budget_tokens = model.budget_tokens,
+				budget_tokens = model.reason_tokens,
 			}
 		end
 		return payload
