@@ -104,7 +104,7 @@ D.get_attchments_from_message = function(message)
 end
 
 ---@param message table
----@param provider string
+---@param provider string|nil
 ---@return table | nil
 D.attach_files_in_message = function(message, provider)
 	local content = nil
@@ -148,10 +148,9 @@ D.attach_files_in_message = function(message, provider)
 				return_message.parts[#return_message.parts + 1] = { inline_data = inline_data }
 			elseif message.content then
 				-- if mine type starts with image, then it is an image else it is a file
-				local type = mime_type:find("image") and "image" or "document"
 				if provider == "anthropic" then
 					inline_data = {
-						type = type,
+						type = mime_type:find("image") and "image" or "document",
 						source = {
 							type = "base64",
 							media_type = mime_type,
@@ -165,7 +164,7 @@ D.attach_files_in_message = function(message, provider)
 					}
 				end
 				if type(message.content) == "string" then
-					return_message.content = { type = "text", text = message.content }
+					return_message.content = { { type = "text", text = message.content } }
 				end
 				return_message.content[#return_message.content + 1] = inline_data
 			end
@@ -194,6 +193,8 @@ D.prepare_payload = function(messages, model, provider)
 			end
 		end
 	end
+
+	local payload
 
 	if provider == "googleai" then
 		-- extract system messages and add them to the system_instruction field
@@ -233,18 +234,8 @@ D.prepare_payload = function(messages, model, provider)
 				i = i + 1
 			end
 		end
-		-- attach files to messages
-		local return_message
-		for k, message in ipairs(messages) do
-			if message.role == "user" then
-				return_message = D.attach_files_in_message(message, provider)
-				if return_message ~= nil then
-					messages[k] = return_message
-				end
-			end
-		end
-		local payload = {
-			contents = messages,
+
+		payload = {
 			safetySettings = {
 				{
 					category = "HARM_CATEGORY_HARASSMENT",
@@ -282,7 +273,6 @@ D.prepare_payload = function(messages, model, provider)
 				},
 			}
 		end
-		return payload
 	end
 
 	if provider == "anthropic" then
@@ -318,11 +308,9 @@ D.prepare_payload = function(messages, model, provider)
 				end
 			end
 		end
-
-		local payload = {
+		payload = {
 			model = model.model,
 			stream = model.stream or true,
-			messages = messages,
 			system = system,
 			max_tokens = model.max_tokens,
 			temperature = model.temperature,
@@ -334,23 +322,41 @@ D.prepare_payload = function(messages, model, provider)
 				budget_tokens = model.reason_tokens,
 			}
 		end
+	end
+
+	-- attach files to messages
+	local return_message
+	for k, message in ipairs(messages) do
+		if message.role == "user" then
+			return_message = D.attach_files_in_message(message, provider)
+			if return_message ~= nil then
+				messages[k] = return_message
+			end
+		end
+	end
+
+	if provider == "anthropic" then
+		payload.messages = messages
+		return payload
+	elseif provider == "googleai" then
+		payload.contents = messages
 		return payload
 	end
 
-	local output = vim.deepcopy(model)
-	if output.stream == nil then
-		output.stream = true
+	payload = vim.deepcopy(model)
+	if payload.stream == nil then
+		payload.stream = true
 	end
-	output.messages = messages
+	payload.messages = messages
 
 	-- If it's a OpenAI reason model, we change the role from "system" to "developer"
-	if D.is_openai_reason_model(output.model) then
+	if D.is_openai_reason_model(payload.model) then
 		if messages[1].role == "system" then
 			messages[1].role = "developer"
 		end
 	end
 
-	return output
+	return payload
 end
 
 -- gpt query
