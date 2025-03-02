@@ -186,8 +186,8 @@ D.prepare_payload = function(messages, model, provider)
 		}
 	end
 
-	-- Remove <think> tags from deepseek models
-	if D.is_deepseek_reason_model(model.model) then
+	-- Remove <think> tags from reasoning models
+	if D.is_deepseek_reason_model(model.model) or (provider == "anthropic" and model.reason_tokens ~= nil) then
 		for i = 1, #messages do
 			if messages[i].role == "assistant" then
 				messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
