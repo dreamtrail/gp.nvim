@@ -1140,8 +1140,15 @@ M.chat_respond = function(params)
 				for _, message in ipairs(messages) do
 					if message.role ~= "system" then
 						local msg = { role = message.role }
-						if message.content then
+						if type(message.content) == "string" then
 							msg.content = message.content
+						elseif type(message.content) == "table" then
+							for _, line in ipairs(message.content) do
+								if line.text then
+									msg.content = line.text
+									break
+								end
+							end
 						elseif message.parts then
 							if message.parts.text then
 								msg.content = message.parts.text
@@ -1153,6 +1160,8 @@ M.chat_respond = function(params)
 							vim.api.nvim_err_writeln("Could not find content in message: " .. vim.inspect(message))
 							break
 						end
+						-- replace @attach(.*) with empty string
+						msg.content = msg.content:gsub("@attach(.*)", "")
 						if msg.content and #msg.content > 2000 then
 							msg.content = M.helpers.truncate_string_at_newline(msg.content, 2000)
 						elseif msg.parts and #msg.parts[1].text > 2000 then
