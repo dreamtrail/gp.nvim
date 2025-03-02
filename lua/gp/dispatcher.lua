@@ -160,7 +160,9 @@ D.attach_files_in_message = function(message, provider)
 				else
 					inline_data = {
 						type = "image_url",
-						url = "data:" .. mime_type .. ";base64," .. b64_data,
+						image_url = {
+							url = "data:" .. mime_type .. ";base64," .. b64_data,
+						},
 					}
 				end
 				if type(message.content) == "string" then
@@ -647,6 +649,8 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"user-agent: GitHubCopilotChat/0.23.2024110601",
 			"-H",
 			"x-github-api-version: 2023-07-07",
+			-- "-H",
+			-- "copilot-vision-request: true",
 			"-H",
 			"Authorization: Bearer " .. bearer,
 		}
