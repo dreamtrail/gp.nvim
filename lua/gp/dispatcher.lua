@@ -792,8 +792,8 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 	local finished_lines = 0
 	local skip_first_undojoin = not first_undojoin
 
-	-- local hl_handler_group = "GpHandlerStandout"
-	-- vim.cmd("highlight default link " .. hl_handler_group .. " CursorLine")
+	local hl_handler_group = "GpHandlerStandout"
+	vim.cmd("highlight default link " .. hl_handler_group .. " CursorLine")
 
 	local ns_id = vim.api.nvim_create_namespace("GpHandler_" .. helpers.uuid())
 
@@ -855,9 +855,9 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 
 		if qt.stream then
 			local new_finished_lines = math.max(0, #lines - 1)
-			-- for i = finished_lines, new_finished_lines do
-			-- 	vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
-			-- end
+			for i = finished_lines, new_finished_lines do
+				vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
+			end
 			finished_lines = new_finished_lines
 		else
 			vim.schedule(function()
