@@ -165,7 +165,7 @@ D.attach_files_in_message = function(message, provider)
 						},
 					}
 				end
-				if type(message.content) == "string" then
+				if type(return_message.content) == "string" then
 					return_message.content = { { type = "text", text = message.content } }
 				end
 				return_message.content[#return_message.content + 1] = inline_data
