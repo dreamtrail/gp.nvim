@@ -279,6 +279,17 @@ _H.table_to_file = function(tbl, file_path)
 	file:close()
 end
 
+---@param json string # the json string to be decoded
+---@return table | nil # the table decoded from the json, or nil if an error occurred
+_H.decode_json_safe = function(json)
+	local status, result = pcall(vim.json.decode, json)
+	if not status then
+		logger.error("Failed to decode json: " .. vim.inspect(result))
+		return nil
+	end
+	return result
+end
+
 ---@param file_path string # the file path from where to read the json into a table
 ---@return table | nil # the table read from the file, or nil if an error occurred
 _H.file_to_table = function(file_path)
