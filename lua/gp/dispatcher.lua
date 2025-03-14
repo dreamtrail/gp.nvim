@@ -449,10 +449,10 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								end
 							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
-								if last_content and not last_content:match("\n$") then
-									content = "\n</think>\n\n" .. content
-								else
+								if last_content and last_content:match("\n$") then
 									content = "</think>\n\n" .. content
+								else
+									content = "\n</think>\n\n" .. content
 								end
 								is_other_reasoner = nil
 							end
@@ -505,7 +505,9 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				end
 
 				if content and type(content) == "string" then
-					last_content = content
+					if content ~= "" then
+						last_content = content
+					end
 					if qt.stream then
 						qt.response = qt.response .. content
 						handler(qid, content)
