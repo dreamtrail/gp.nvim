@@ -74,9 +74,9 @@ end
 
 ---@param model string
 ---@return integer | nil
-D.is_deepseek_reason_model = function(model)
+D.is_other_reason_model = function(model)
 	model = model:lower()
-	return model:find("deepseek") and (model:find("reasoner") or model:find("r1"))
+	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1"))) or model:find("qwq")
 end
 
 ---@param message string
@@ -188,7 +188,7 @@ D.prepare_payload = function(messages, model, provider)
 	end
 
 	-- Remove <think> tags from reasoning models
-	if D.is_deepseek_reason_model(model.model) or (provider == "anthropic" and model.reason_tokens ~= nil) then
+	if D.is_other_reason_model(model.model) or (provider == "anthropic" and model.reason_tokens ~= nil) then
 		for i = 1, #messages do
 			if messages[i].role == "assistant" then
 				messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
@@ -379,7 +379,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	end
 
 	local qid = helpers.uuid()
-	local is_deepseek_reasoner = D.is_deepseek_reason_model(payload.model)
+	local is_other_reasoner = D.is_other_reason_model(payload.model)
 	local is_anthropic_reasoner = provider == "anthropic" and payload.thinking ~= nil
 
 	if not stream then
@@ -407,6 +407,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	local out_reader = function()
 		local buffer = ""
 		local full_response = {} -- To accumulate response if not streaming
+		local last_content = nil
 		local start_time = os.time()
 		local total_length = 0
 		local total_reasoning_length = 0
@@ -432,9 +433,10 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						if line.choices[1].delta.content then
 							content = line.choices[1].delta.content
 						end
-						if is_deepseek_reasoner then
+						if is_other_reasoner then
 							if type(content) ~= "string" or content == "" then
 								local reasoning_content = line.choices[1].delta.reasoning_content
+									or line.choices[1].delta.reasoning
 								if type(reasoning_content) == "string" and reasoning_content ~= "" then
 									local len = #reasoning_content
 									if total_reasoning_length == 0 and len > 0 then
@@ -447,8 +449,12 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								end
 							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
-								content = "\n</think>\n\n" .. content
-								is_deepseek_reasoner = nil
+								if last_content and not last_content:match("\n$") then
+									content = "\n</think>\n\n" .. content
+								else
+									content = "</think>\n\n" .. content
+								end
+								is_other_reasoner = nil
 							end
 						end
 					end
@@ -499,6 +505,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				end
 
 				if content and type(content) == "string" then
+					last_content = content
 					if qt.stream then
 						qt.response = qt.response .. content
 						handler(qid, content)
