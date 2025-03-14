@@ -411,6 +411,41 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		local start_time = os.time()
 		local total_length = 0
 		local total_reasoning_length = 0
+		local content_buffer = ""
+		---@diagnostic disable-next-line: undefined-field
+		local last_update_time = vim.loop.now()
+
+		---@param qt table query table
+		---@param content string content to process
+		local function process_content(qt, content)
+			local UPDATE_INTERVAL_MS = 100 -- Update UI every 100ms
+			local MIN_CHUNK_SIZE = 100 -- Minimum characters before forcing an update
+
+			if content and type(content) == "string" and content ~= "" then
+				last_content = content
+				if qt.stream then
+					qt.response = qt.response .. content
+					content_buffer = content_buffer .. content
+
+					-- Check if it's time to update the UI
+					---@diagnostic disable-next-line: undefined-field
+					local now = vim.loop.now()
+					if now - last_update_time >= UPDATE_INTERVAL_MS or #content_buffer >= MIN_CHUNK_SIZE then
+						handler(qid, content_buffer)
+						content_buffer = "" -- Reset buffer after updating
+						last_update_time = now
+					end
+				else
+					table.insert(full_response, content)
+					total_length = total_length + #content
+					vim.schedule(function()
+						local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
+						local msg = "Received: " .. total_length .. " B (" .. speed .. " B/s)"
+						vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
+					end)
+				end
+			end
+		end
 
 		---@param lines_chunk string
 		local function process_lines(lines_chunk)
@@ -426,6 +461,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				end
 				line = line:gsub("^data: ", "")
 				local content = ""
+
 				if line:match("choices") and line:match("delta") and line:match("content") then
 					line = vim.json.decode(line)
 					-- logger.debug("line: " .. vim.inspect(line))
@@ -504,23 +540,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 
-				if content and type(content) == "string" then
-					if content ~= "" then
-						last_content = content
-					end
-					if qt.stream then
-						qt.response = qt.response .. content
-						handler(qid, content)
-					else
-						table.insert(full_response, content)
-						total_length = total_length + #content
-						vim.schedule(function()
-							local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
-							local msg = "Received: " .. total_length .. " B (" .. speed .. " B/s)"
-							vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
-						end)
-					end
-				end
+				process_content(qt, content)
 			end
 		end
 
@@ -548,6 +568,9 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				-- if there's remaining data in the buffer, process it
 				if #buffer > 0 then
 					process_lines(buffer)
+				end
+				if #content_buffer > 0 then
+					handler(qid, content_buffer)
 				end
 
 				if not qt.stream then
@@ -769,8 +792,8 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 	local finished_lines = 0
 	local skip_first_undojoin = not first_undojoin
 
-	local hl_handler_group = "GpHandlerStandout"
-	vim.cmd("highlight default link " .. hl_handler_group .. " CursorLine")
+	-- local hl_handler_group = "GpHandlerStandout"
+	-- vim.cmd("highlight default link " .. hl_handler_group .. " CursorLine")
 
 	local ns_id = vim.api.nvim_create_namespace("GpHandler_" .. helpers.uuid())
 
@@ -782,11 +805,7 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 	local response = ""
 	return vim.schedule_wrap(function(qid, chunk)
 		local qt = tasker.get_query(qid)
-		if not qt then
-			return
-		end
-		-- if buf is not valid, stop
-		if not vim.api.nvim_buf_is_valid(buf) then
+		if not qt or not vim.api.nvim_buf_is_valid(buf) then
 			return
 		end
 		-- undojoin takes previous change into account, so skip it for the first chunk
@@ -836,9 +855,9 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 
 		if qt.stream then
 			local new_finished_lines = math.max(0, #lines - 1)
-			for i = finished_lines, new_finished_lines do
-				vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
-			end
+			-- for i = finished_lines, new_finished_lines do
+			-- 	vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
+			-- end
 			finished_lines = new_finished_lines
 		else
 			vim.schedule(function()
