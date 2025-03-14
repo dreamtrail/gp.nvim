@@ -83,7 +83,7 @@ end
 ---@return table
 --- Extracts attachment from message: syntax: attach(/location_of_attachment)
 --- Need to Handle multiple attachments in the same message
-D.get_attchments_from_message = function(message)
+D.get_attachments_from_message = function(message)
 	local attachments = {}
 	if not message then
 		return attachments
@@ -120,7 +120,7 @@ D.attach_files_in_message = function(message, provider)
 	if not content then
 		return nil
 	end
-	local attachments = D.get_attchments_from_message(content)
+	local attachments = D.get_attachments_from_message(content)
 	local data
 	if #attachments == 0 then
 		return nil
