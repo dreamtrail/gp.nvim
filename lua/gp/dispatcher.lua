@@ -384,10 +384,10 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 
 	if not stream then
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
-		vim.schedule(function()
-			vim.api.nvim_echo({ { "Querying " .. provider:gsub("^%l", string.upper) .. " ...", "Normal" } }, false, {})
-		end)
 	end
+	vim.schedule(function()
+		vim.api.nvim_echo({ { "Querying " .. provider:gsub("^%l", string.upper) .. " ...", "Normal" } }, false, {})
+	end)
 	tasker.set_query(qid, {
 		timestamp = os.time(),
 		buf = buf,
@@ -437,13 +437,13 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				else
 					table.insert(full_response, content)
-					total_length = total_length + #content
-					vim.schedule(function()
-						local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
-						local msg = "Received: " .. total_length .. " B (" .. speed .. " B/s)"
-						vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
-					end)
 				end
+				total_length = total_length + #content
+				vim.schedule(function()
+					local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
+					local msg = "Received: " .. total_length .. " B (" .. speed .. " B/s)"
+					vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
+				end)
 			end
 		end
 
@@ -624,6 +624,11 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						handler(qid, content)
 					end
 				end
+
+				-- clear the speed message
+				vim.schedule(function()
+					vim.api.nvim_echo({ { "" } }, false, {})
+				end)
 
 				if qt.response == "" then
 					logger.error(qt.provider .. " response is empty: \n" .. vim.inspect(qt.raw_response))
@@ -859,10 +864,6 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 				vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
 			end
 			finished_lines = new_finished_lines
-		else
-			vim.schedule(function()
-				vim.api.nvim_echo({ { "" } }, false, {})
-			end)
 		end
 		local end_line = first_line + #vim.split(response, "\n")
 		qt.first_line = first_line
