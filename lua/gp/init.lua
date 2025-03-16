@@ -1893,13 +1893,14 @@ M.Prompt = function(params, target, agent, template, prompt, whisper, callback)
 		local filetype = M.helpers.get_filetype(buf)
 		local filename = vim.api.nvim_buf_get_name(buf)
 
-		local sys_prompt = M.render.prompt_template(agent.system_prompt, command, selection, filetype, filename)
-		sys_prompt = sys_prompt or ""
-		table.insert(messages, { role = "system", content = sys_prompt })
+		if agent.system_prompt and agent.system_prompt ~= "" then
+			local sys_prompt = M.render.prompt_template(agent.system_prompt, command, selection, filetype, filename)
+			table.insert(messages, { role = "system", content = sys_prompt })
+		end
 
 		local repo_instructions = M.repo_instructions()
 		if repo_instructions ~= "" then
-			table.insert(messages, { role = "system", content = repo_instructions })
+			table.insert(messages, { role = "user", content = repo_instructions })
 		end
 
 		local user_prompt = M.render.prompt_template(template, command, selection, filetype, filename)
