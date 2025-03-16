@@ -624,26 +624,21 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						handler(qid, content)
 					end
 				end
-
-				-- clear the speed message
-				vim.schedule(function()
-					vim.api.nvim_echo({ { "" } }, false, {})
-				end)
-
+				-- if the response is empty, log an error
 				if qt.response == "" then
 					logger.error(qt.provider .. " response is empty: \n" .. vim.inspect(qt.raw_response))
 				end
-
+				-- clear the speed message and highlight
+				vim.schedule(function()
+					vim.api.nvim_echo({ { "" } }, false, {})
+					if qt.ns_id and qt.buf then
+						vim.api.nvim_buf_clear_namespace(qt.buf, qt.ns_id, 0, -1)
+					end
+				end)
 				-- optional on_exit handler
 				if type(on_exit) == "function" then
 					on_exit(qid)
-					if qt.ns_id and qt.buf then
-						vim.schedule(function()
-							vim.api.nvim_buf_clear_namespace(qt.buf, qt.ns_id, 0, -1)
-						end)
-					end
 				end
-
 				-- optional callback handler
 				if type(callback) == "function" then
 					vim.schedule(function()
