@@ -491,6 +491,15 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 									content = "\n</think>\n\n" .. content
 								end
 								is_other_reasoner = nil
+							elseif
+								qt.provider == "lambda"
+								and total_reasoning_length == 0
+								and type(content) == "string"
+								and content ~= ""
+							then
+								content = content:gsub("^[\n]+", "")
+								content = "<think>\n" .. content
+								is_other_reasoner = nil
 							end
 						end
 					end
