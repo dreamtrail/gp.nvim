@@ -66,6 +66,34 @@ D.setup = function(opts)
 	logger.debug("dispatcher setup finished\n" .. vim.inspect(D))
 end
 
+D.update_status_msg = function(msg)
+	vim.g.status_msg = msg
+	vim.cmd("redrawstatus") -- Force status line refresh
+end
+
+-- Print the start of the query
+-- @param provider string
+D.show_query_start = function(provider)
+	if vim.o.laststatus ~= 2 then
+		vim.g.gp_laststatus = vim.o.laststatus
+		vim.o.laststatus = 2
+	end
+	vim.o.statusline = "%{g:status_msg}%=%l,%c %P" -- Adjust formatting as needed
+	local msg = "Querying " .. provider:gsub("^%l", string.upper) .. " ..."
+	D.update_status_msg(msg)
+end
+
+-- Print the progress of the query
+-- @param msg string
+D.show_query_progress = function(msg)
+	D.update_status_msg(msg)
+end
+
+-- Print the end of the query
+D.print_query_end = function()
+	vim.o.laststatus = vim.g.gp_laststatus
+end
+
 ---@param model string
 ---@return boolean
 D.is_openai_reason_model = function(model)
@@ -386,7 +414,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 	end
 	vim.schedule(function()
-		vim.api.nvim_echo({ { "Querying " .. provider:gsub("^%l", string.upper) .. " ...", "Normal" } }, false, {})
+		D.show_query_start(provider)
 	end)
 	tasker.set_query(qid, {
 		timestamp = os.time(),
@@ -442,7 +470,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				vim.schedule(function()
 					local speed = math.floor(total_length / (os.time() - start_time) + 0.5)
 					local msg = "Received: " .. total_length .. " B (" .. speed .. " B/s)"
-					vim.api.nvim_echo({ { msg, "Normal" } }, false, {})
+					D.show_query_progress(msg)
 				end)
 			end
 		end
@@ -639,7 +667,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				end
 				-- clear the speed message and highlight
 				vim.schedule(function()
-					vim.api.nvim_echo({ { "" } }, false, {})
+					D.print_query_end()
 					if qt.ns_id and qt.buf then
 						vim.api.nvim_buf_clear_namespace(qt.buf, qt.ns_id, 0, -1)
 					end
