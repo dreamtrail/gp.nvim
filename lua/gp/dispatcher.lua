@@ -67,8 +67,36 @@ D.setup = function(opts)
 end
 
 D.update_status_msg = function(msg)
+	---@diagnostic disable-next-line: undefined-field
+	local current_time = vim.loop.now()
+	local update_interval_ms = 500
+
+	-- If we recently updated, schedule this update for later
+	if current_time - D.last_refresh_time < update_interval_ms then
+		D.pending_message = msg
+
+		-- If timer isn't already scheduled, schedule it
+		if not D.refresh_timer:is_active() then
+			D.refresh_timer:start(
+				update_interval_ms - (current_time - D.last_refresh_time),
+				0,
+				vim.schedule_wrap(function()
+					if D.pending_message then
+						vim.g.status_msg = D.pending_message
+						D.pending_message = nil
+						vim.cmd("redrawstatus")
+						---@diagnostic disable-next-line: undefined-field
+						D.last_refresh_time = vim.loop.now()
+					end
+				end)
+			)
+		end
+		return
+	end
+	-- Otherwise update immediately
 	vim.g.status_msg = msg
-	vim.cmd("redrawstatus") -- Force status line refresh
+	vim.cmd("redrawstatus")
+	D.last_refresh_time = current_time
 end
 
 -- Print the start of the query
@@ -80,6 +108,10 @@ D.show_query_start = function(provider)
 	end
 	vim.o.statusline = "%{g:status_msg}%=%l,%c %P" -- Adjust formatting as needed
 	local msg = "Querying " .. provider:gsub("^%l", string.upper) .. " ..."
+	---@diagnostic disable-next-line: undefined-field
+	D.refresh_timer = vim.loop.new_timer()
+	D.last_refresh_time = 0
+	D.pending_message = nil
 	D.update_status_msg(msg)
 end
 
@@ -92,6 +124,8 @@ end
 -- Print the end of the query
 D.print_query_end = function()
 	vim.o.laststatus = vim.g.gp_laststatus
+	D.refresh_timer:close()
+	D.refresh_timer = nil
 end
 
 ---@param model string
