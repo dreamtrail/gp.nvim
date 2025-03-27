@@ -260,7 +260,7 @@ D.prepare_payload = function(messages, model, provider)
 
 	local payload
 
-	if provider == "googleai" then
+	if provider == "google" then
 		-- extract system messages and add them to the system_instruction field
 		local system = ""
 		local j = 1
@@ -272,7 +272,7 @@ D.prepare_payload = function(messages, model, provider)
 				j = j + 1
 			end
 		end
-		-- convert messages to googleai format
+		-- convert messages to google format
 		for i, message in ipairs(messages) do
 			if message.role == "assistant" then
 				messages[i].role = "model"
@@ -402,7 +402,7 @@ D.prepare_payload = function(messages, model, provider)
 	if provider == "anthropic" then
 		payload.messages = messages
 		return payload
-	elseif provider == "googleai" then
+	elseif provider == "google" then
 		payload.contents = messages
 		return payload
 	end
@@ -605,7 +605,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 
-				if qt.provider == "googleai" then
+				if qt.provider == "google" then
 					if line:match('"text":') then
 						content = vim.json.decode("{" .. line .. "}").text
 					end
@@ -765,7 +765,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"-H",
 			"api-key: " .. bearer,
 		}
-	elseif provider == "googleai" then
+	elseif provider == "google" then
 		headers = {}
 		endpoint = render.template_replace(endpoint, "{{secret}}", bearer)
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)

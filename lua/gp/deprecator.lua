@@ -40,7 +40,7 @@ local deprecated = {
 		.. "\n\nOtherwise sorry for probably breaking your setup, "
 		.. "please use `endpoint` and `secret` fields in:\n\nproviders "
 		.. "= {\n  openai = {\n    endpoint = '...',\n    secret = '...'\n   },"
-		.. "\n  -- azure = {...},\n  -- copilot = {...},\n  -- ollama = {...},\n  -- googleai= {...},\n  -- pplx = {...},\n  -- anthropic = {...},\n},\n"
+		.. "\n  -- azure = {...},\n  -- copilot = {...},\n  -- ollama = {...},\n  -- google= {...},\n  -- pplx = {...},\n  -- anthropic = {...},\n},\n"
 		.. "\nThe `openai_api_key` is still supported for backwards compatibility,\n"
 		.. "and automatically converted to `providers.openai.secret` if the new config is not set.",
 	image_dir = "`image_dir`\nPlease use `image = { store_dir = ... }`",

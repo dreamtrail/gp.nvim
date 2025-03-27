@@ -57,10 +57,10 @@ local config = {
 			endpoint = "http://localhost:1234/v1/chat/completions",
 			secret = "dummy_secret",
 		},
-		googleai = {
+		google = {
 			disable = true,
 			endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{{model}}:streamGenerateContent?key={{secret}}",
-			secret = os.getenv("GOOGLEAI_API_KEY"),
+			secret = os.getenv("GOOGLE_API_KEY"),
 		},
 		pplx = {
 			disable = true,
@@ -132,7 +132,7 @@ local config = {
 			system_prompt = require("gp.defaults").chat_system_prompt,
 		},
 		{
-			provider = "googleai",
+			provider = "google",
 			name = "ChatGemini",
 			chat = true,
 			command = false,
@@ -232,7 +232,7 @@ local config = {
 			system_prompt = require("gp.defaults").code_system_prompt,
 		},
 		{
-			provider = "googleai",
+			provider = "google",
 			name = "CodeGemini",
 			chat = false,
 			command = true,
