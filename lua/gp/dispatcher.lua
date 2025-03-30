@@ -193,7 +193,7 @@ D.attach_files_in_message = function(message, provider)
 		local f = io.open(file, "rb")
 		if not f then
 			vim.schedule(function()
-				vim.api.nvim_err_writeln("Attachment not found: " .. file)
+				vim.notify("Attachment not found: " .. file, vim.log.levels.WARN)
 			end)
 		else
 			data = f:read("*all")
@@ -927,7 +927,9 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 		if qt.stream then
 			local new_finished_lines = math.max(0, #lines - 1)
 			for i = finished_lines, new_finished_lines do
-				vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
+				vim.hl.range(buf, ns_id, hl_handler_group, { first_line + i, 0 }, { first_line + i, -1 }, {
+					regtype = "V",
+				})
 			end
 			finished_lines = new_finished_lines
 		end
