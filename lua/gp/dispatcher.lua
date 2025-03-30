@@ -567,7 +567,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 
-				if qt.provider == "anthropic" and line then
+				if qt.provider == "anthropic" and line ~= nil then
 					if line:match('"text":') then
 						if line:match("content_block_start") or line:match("content_block_delta") then
 							line = vim.json.decode(line)
