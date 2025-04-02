@@ -1975,8 +1975,12 @@ M.Prompt = function(params, target, agent, template, prompt, whisper, callback)
 				win = vim.api.nvim_get_current_win()
 			end
 
-			buf = vim.api.nvim_create_buf(true, true)
-			vim.api.nvim_set_current_buf(buf)
+			if target.type == M.Target.tabnew().type then
+				buf = vim.api.nvim_get_current_buf()
+			else
+				buf = vim.api.nvim_create_buf(true, true)
+				vim.api.nvim_set_current_buf(buf)
+			end
 
 			local group = M.helpers.create_augroup("GpScratchSave" .. M.helpers.uuid(), { clear = true })
 			vim.api.nvim_create_autocmd({ "BufWritePre" }, {
