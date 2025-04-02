@@ -260,7 +260,7 @@ D.prepare_payload = function(messages, model, provider)
 
 	local payload
 
-	if provider == "google" then
+	if provider == "google" or provider == "vertex" then
 		-- extract system messages and add them to the system_instruction field
 		local system = ""
 		local j = 1
@@ -402,7 +402,7 @@ D.prepare_payload = function(messages, model, provider)
 	if provider == "anthropic" then
 		payload.messages = messages
 		return payload
-	elseif provider == "google" then
+	elseif provider == "google" or provider == "vertex" then
 		payload.contents = messages
 		return payload
 	end
@@ -605,7 +605,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 
-				if qt.provider == "google" then
+				if qt.provider == "google" or qt.provider == "vertex" then
 					if line:match('"text":') then
 						content = vim.json.decode("{" .. line .. "}").text
 					end
@@ -727,6 +727,8 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	local secret = provider
 	if provider == "copilot" then
 		secret = "copilot_bearer"
+	elseif provider == "vertex" then
+		secret = "vertex_bearer"
 	end
 	local bearer = vault.get_secret(secret)
 	if not bearer then
@@ -768,6 +770,13 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	elseif provider == "google" then
 		headers = {}
 		endpoint = render.template_replace(endpoint, "{{secret}}", bearer)
+		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
+		payload.model = nil
+	elseif provider == "vertex" then
+		headers = {
+			"-H",
+			"Authorization: Bearer " .. bearer,
+		}
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
 		payload.model = nil
 	elseif provider == "anthropic" then
@@ -835,6 +844,13 @@ D.query = function(buf, provider, payload, handler, on_exit, callback, stream)
 	if provider == "copilot" then
 		return vault.run_with_secret(provider, function()
 			vault.refresh_copilot_bearer(function()
+				---@diagnostic disable-next-line: param-type-mismatch
+				query(buf, provider, payload, handler, on_exit, callback, stream)
+			end)
+		end)
+	elseif provider == "vertex" then
+		return vault.run_with_secret(provider, function()
+			vault.refresh_vertex_bearer(function()
 				---@diagnostic disable-next-line: param-type-mismatch
 				query(buf, provider, payload, handler, on_exit, callback, stream)
 			end)

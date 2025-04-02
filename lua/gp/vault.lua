@@ -104,7 +104,9 @@ V.resolve_secret = function(name, secret, callback)
 			if code == 0 then
 				local content = stdout_data:match("^%s*(.-)%s*$")
 				if not string.match(content, "%S") then
-					logger.warning("vault resolver got empty response for " .. name .. " secret command " .. vim.inspect(secret))
+					logger.warning(
+						"vault resolver got empty response for " .. name .. " secret command " .. vim.inspect(secret)
+					)
 					return
 				end
 				secrets[name] = content
@@ -130,6 +132,59 @@ V.resolve_secret = function(name, secret, callback)
 		secrets[name] = secret
 		post_process()
 	end
+end
+
+--- get the bearer token for the vertex AI via run command `gcloud auth print-access-token`
+--- save the state(bearer, time, etc) in the state file: `state_dir/vault_vertex.json`
+--- refresh the bearer token if it is expired, it will be refreshed every 60 minutes
+--- if the token is not expired, it will be used directly
+--- the token will be saved in the `secrets` table as `vertex_bearer`
+V.refresh_vertex_bearer = function(callback)
+	logger.debug("vault refresh_vertex_bearer: started", true)
+	callback = callback or function() end
+
+	local state_file = V.config.state_dir .. "/vault_vertex.json"
+
+	local state = {}
+	if vim.fn.filereadable(state_file) ~= 0 then
+		state = helpers.file_to_table(state_file) or {}
+	end
+
+	local bearer = state.bearer or {}
+	-- Check if token exists and is not expired (60 minute validity)
+	if bearer.token and bearer.expires_at and bearer.expires_at > os.time() then
+		secrets.vertex_bearer = bearer.token
+		logger.debug("vault refresh_vertex_bearer: token still valid, running callback", true)
+		callback()
+		return
+	end
+
+	logger.debug("vault refresh_vertex_bearer: token expired or not found, refreshing", true)
+
+	tasker.run(nil, "gcloud.bat", { "auth", "print-access-token" }, function(code, _, stdout_data, stderr_data)
+		if code ~= 0 then
+			logger.error("vault refresh_vertex_bearer failed: " .. stderr_data)
+			return
+		end
+
+		local token = stdout_data:match("^%s*(.-)%s*$")
+		if not string.match(token, "%S") then
+			logger.error("vault refresh_vertex_bearer: empty token received")
+			return
+		end
+
+		-- Set expiration time to 60 minutes from now
+		state.bearer = {
+			token = token,
+			expires_at = os.time() + (60 * 60),
+		}
+		-- Save state to file
+		helpers.table_to_file(state, state_file)
+		-- Set the token in secrets
+		secrets.vertex_bearer = token
+		logger.log("vault refresh_vertex_bearer: token refreshed, running callback", true)
+		callback()
+	end)
 end
 
 V.refresh_copilot_bearer = function(callback)
