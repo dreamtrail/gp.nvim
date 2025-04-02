@@ -182,7 +182,7 @@ V.refresh_vertex_bearer = function(callback)
 		helpers.table_to_file(state, state_file)
 		-- Set the token in secrets
 		secrets.vertex_bearer = token
-		logger.log("vault refresh_vertex_bearer: token refreshed, running callback", true)
+		logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
 		callback()
 	end)
 end
