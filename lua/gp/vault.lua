@@ -136,7 +136,7 @@ end
 
 --- get the bearer token for the vertex AI via run command `gcloud auth print-access-token`
 --- save the state(bearer, time, etc) in the state file: `state_dir/vault_vertex.json`
---- refresh the bearer token if it is expired, it will be refreshed every 60 minutes
+--- refresh the bearer token if it is expired, it will be refreshed every 30 minutes
 --- if the token is not expired, it will be used directly
 --- the token will be saved in the `secrets` table as `vertex_bearer`
 V.refresh_vertex_bearer = function(callback)
@@ -151,7 +151,7 @@ V.refresh_vertex_bearer = function(callback)
 	end
 
 	local bearer = state.bearer or {}
-	-- Check if token exists and is not expired (60 minute validity)
+	-- Check if token exists and is not expired (30 minute validity)
 	if bearer.token and bearer.expires_at and bearer.expires_at > os.time() then
 		secrets.vertex_bearer = bearer.token
 		logger.debug("vault refresh_vertex_bearer: token still valid, running callback", true)
@@ -173,10 +173,10 @@ V.refresh_vertex_bearer = function(callback)
 			return
 		end
 
-		-- Set expiration time to 60 minutes from now
+		-- Set expiration time to 30 minutes from now
 		state.bearer = {
 			token = token,
-			expires_at = os.time() + (60 * 60),
+			expires_at = os.time() + (60 * 30),
 		}
 		-- Save state to file
 		helpers.table_to_file(state, state_file)
