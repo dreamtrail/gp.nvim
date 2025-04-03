@@ -161,30 +161,34 @@ V.refresh_vertex_bearer = function(callback)
 
 	logger.debug("vault refresh_vertex_bearer: token expired or not found, refreshing", true)
 
-	tasker.run(nil, "gcloud.bat", { "auth", "print-access-token" }, function(code, _, stdout_data, stderr_data)
-		if code ~= 0 then
-			logger.error("vault refresh_vertex_bearer failed: " .. stderr_data)
+	-- use vim.fn.system to run gcloud command
+	local output = vim.fn.system("gcloud auth print-access-token")
+	if not output or output == "" then
+		-- try again
+		output = vim.fn.system("gcloud auth print-access-token")
+		if not output or output == "" then
+			logger.error("vault refresh_vertex_bearer: gcloud auth print-access-token failed")
 			return
 		end
+	end
 
-		local token = stdout_data:match("^%s*(.-)%s*$")
-		if not string.match(token, "%S") then
-			logger.error("vault refresh_vertex_bearer: empty token received")
-			return
-		end
+	local token = output:match("^%s*(.-)%s*$")
+	if not string.match(token, "%S") then
+		logger.error("vault refresh_vertex_bearer: empty token received")
+		return
+	end
 
-		-- Set expiration time to 30 minutes from now
-		state.bearer = {
-			token = token,
-			expires_at = os.time() + (60 * 30),
-		}
-		-- Save state to file
-		helpers.table_to_file(state, state_file)
-		-- Set the token in secrets
-		secrets.vertex_bearer = token
-		logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
-		callback()
-	end)
+	-- Set expiration time to 30 minutes from now
+	state.bearer = {
+		token = token,
+		expires_at = os.time() + (60 * 30),
+	}
+	-- Save state to file
+	helpers.table_to_file(state, state_file)
+	-- Set the token in secrets
+	secrets.vertex_bearer = token
+	logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
+	callback()
 end
 
 V.refresh_copilot_bearer = function(callback)
