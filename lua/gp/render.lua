@@ -54,7 +54,6 @@ M.prompt_template = function(template, command, selection, filetype, filename)
 	if filename == nil or filename == "" then
 		filename = "untitled"
 	end
-	vim.notify("filename: " .. filename)
 
 	local key_value_pairs = {
 		["{{command}}"] = command or "",
