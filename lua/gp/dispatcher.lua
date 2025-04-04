@@ -948,6 +948,7 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 						regtype = "V",
 					})
 				else
+					---@diagnostic disable-next-line: deprecated
 					vim.api.nvim_buf_add_highlight(buf, qt.ns_id, hl_handler_group, first_line + i, 0, -1)
 				end
 			end
