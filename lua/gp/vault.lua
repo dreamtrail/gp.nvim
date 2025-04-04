@@ -163,10 +163,12 @@ V.refresh_vertex_bearer = function(callback)
 
 	-- use vim.fn.system to run gcloud command
 	local output = vim.fn.system("gcloud auth print-access-token")
-	if not output or output == "" then
-		-- try again
+	if not output or output == "" or output:match("ERROR") then
+		--- wait 3 seconds and try again
+		logger.debug("vault refresh_vertex_bearer: gcloud auth print-access-token failed, retrying in 3 seconds", true)
+		vim.wait(5000)
 		output = vim.fn.system("gcloud auth print-access-token")
-		if not output or output == "" then
+		if not output or output == "" or output:match("ERROR") then
 			logger.error("vault refresh_vertex_bearer: gcloud auth print-access-token failed")
 			return
 		end
