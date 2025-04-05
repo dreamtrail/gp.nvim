@@ -162,41 +162,31 @@ V.refresh_vertex_bearer = function(callback)
 	logger.debug("vault refresh_vertex_bearer: token expired or not found, refreshing", true)
 
 	local refresh_cmd = secrets.vertex
-	local output = ""
-	-- use vim.fn.system to run gcloud command
-	local max_retries = 10
-	while max_retries > 0 do
-		output = vim.fn.system(refresh_cmd)
-		if output and output ~= "" and not output:match("ERROR") then
-			break
-		end
-		max_retries = max_retries - 1
-		if max_retries > 0 then
-			logger.debug("vault refresh_vertex_bearer: gcloud auth print-access-token failed, retrying...", true)
-			vim.wait(500)
-		else
-			logger.error("vault refresh_vertex_bearer: gcloud auth print-access-token failed after retries")
+	local on_success = function(output, _)
+		local token = output:match("^%s*(.-)%s*$")
+		if not string.match(token, "%S") then
+			logger.error("vault refresh_vertex_bearer: empty token received")
 			return
 		end
+		-- Set expiration time to 30 minutes from now
+		state.bearer = {
+			token = token,
+			expires_at = os.time() + (60 * 30),
+		}
+		-- Save state to file
+		helpers.table_to_file(state, state_file)
+		-- Set the token in secrets
+		secrets.vertex_bearer = token
+		logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
+		callback()
 	end
-
-	local token = output:match("^%s*(.-)%s*$")
-	if not string.match(token, "%S") then
-		logger.error("vault refresh_vertex_bearer: empty token received")
-		return
+	local on_failure = function(code, stdout, stderr, retry_count)
+		logger.error(string.format("vault refresh_vertex_bearer: command failed: %d, %s, %s", code, stdout, stderr))
+		if retry_count >= 3 then
+			logger.error("vault refresh_vertex_bearer: max retries reached")
+		end
 	end
-
-	-- Set expiration time to 30 minutes from now
-	state.bearer = {
-		token = token,
-		expires_at = os.time() + (60 * 30),
-	}
-	-- Save state to file
-	helpers.table_to_file(state, state_file)
-	-- Set the token in secrets
-	secrets.vertex_bearer = token
-	logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
-	callback()
+	helpers.run_with_timeout_retry(refresh_cmd, 5000, 3, on_success, on_failure)
 end
 
 V.refresh_copilot_bearer = function(callback)
