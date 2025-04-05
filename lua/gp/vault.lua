@@ -168,7 +168,7 @@ V.refresh_vertex_bearer = function(callback)
 			logger.error("vault refresh_vertex_bearer: empty token received")
 			return false
 		end
-		if token.find("ERROR") then
+		if string.match(token, "ERROR") then
 			logger.error("vault refresh_vertex_bearer: error in token received")
 			return false
 		end
