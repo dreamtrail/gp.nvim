@@ -162,14 +162,20 @@ V.refresh_vertex_bearer = function(callback)
 	logger.debug("vault refresh_vertex_bearer: token expired or not found, refreshing", true)
 
 	local refresh_cmd = secrets.vertex
+	local output = ""
 	-- use vim.fn.system to run gcloud command
-	local output = vim.fn.system(refresh_cmd)
-	if not output or output == "" or output:match("ERROR") then
-		--- wait 5 seconds and try again
-		vim.wait(5000)
+	local max_retries = 10
+	while max_retries > 0 do
 		output = vim.fn.system(refresh_cmd)
-		if not output or output == "" or output:match("ERROR") then
-			logger.error("vault refresh_vertex_bearer: gcloud auth print-access-token failed")
+		if output and output ~= "" and not output:match("ERROR") then
+			break
+		end
+		max_retries = max_retries - 1
+		if max_retries > 0 then
+			logger.debug("vault refresh_vertex_bearer: gcloud auth print-access-token failed, retrying...", true)
+			vim.wait(500)
+		else
+			logger.error("vault refresh_vertex_bearer: gcloud auth print-access-token failed after retries")
 			return
 		end
 	end
