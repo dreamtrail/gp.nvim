@@ -136,11 +136,7 @@ _H.run_with_timeout_retry = function(cmd, timeout_ms, max_retries, on_success, o
 				local stdout = table.concat(stdout_chunks, "\n")
 				local stderr = table.concat(stderr_chunks, "\n")
 
-				if exit_code == 0 then
-					if on_success then
-						on_success(stdout, stderr)
-					end
-				else
+				if exit_code ~= 0 or not on_success(stdout, stderr) then
 					last_error = { code = exit_code, stdout = stdout, stderr = stderr }
 					retry_count = retry_count + 1
 					if retry_count < max_retries then
