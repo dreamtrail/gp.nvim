@@ -166,7 +166,11 @@ V.refresh_vertex_bearer = function(callback)
 		local token = output:match("^%s*(.-)%s*$")
 		if not string.match(token, "%S") then
 			logger.error("vault refresh_vertex_bearer: empty token received")
-			return
+			return false
+		end
+		if token.find("ERROR") then
+			logger.error("vault refresh_vertex_bearer: error in token received")
+			return false
 		end
 		-- Set expiration time to 30 minutes from now
 		state.bearer = {
@@ -179,6 +183,7 @@ V.refresh_vertex_bearer = function(callback)
 		secrets.vertex_bearer = token
 		logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
 		callback()
+		return true
 	end
 	local on_failure = function(code, stdout, stderr, retry_count)
 		logger.error(string.format("vault refresh_vertex_bearer: command failed: %d, %s, %s", code, stdout, stderr))
