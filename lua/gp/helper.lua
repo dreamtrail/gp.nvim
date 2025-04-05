@@ -105,6 +105,81 @@ _H.move_to_trash = function(file_path, callback)
 	})
 end
 
+---@param cmd string # command to run
+---@param timeout_ms number # timeout in milliseconds
+---@param max_retries number # maximum number of retries
+---@param on_success function # callback to run on success
+---@param on_failure function # callback to run on failure
+_H.run_with_timeout_retry = function(cmd, timeout_ms, max_retries, on_success, on_failure)
+	local retry_count = 0
+	local last_error = nil
+	local stdout_chunks = {}
+	local stderr_chunks = {}
+
+	local function reset_output()
+		stdout_chunks = {}
+		stderr_chunks = {}
+	end
+
+	local function collect_output(chunks, data)
+		for _, line in ipairs(data) do
+			if line and #line > 0 then
+				table.insert(chunks, line)
+			end
+		end
+	end
+
+	local function attempt()
+		reset_output()
+		local job_id = vim.fn.jobstart(cmd, {
+			on_exit = function(_, exit_code, _)
+				local stdout = table.concat(stdout_chunks, "\n")
+				local stderr = table.concat(stderr_chunks, "\n")
+
+				if exit_code == 0 then
+					if on_success then
+						on_success(stdout, stderr)
+					end
+				else
+					last_error = { code = exit_code, stdout = stdout, stderr = stderr }
+					retry_count = retry_count + 1
+					if retry_count < max_retries then
+						local delay = math.min(1000 * (2 ^ (retry_count - 1)), 10000) -- Exponential backoff max 10s
+						vim.defer_fn(attempt, delay)
+					else
+						if on_failure then
+							on_failure(last_error.code, stdout, stderr, retry_count)
+						end
+					end
+				end
+			end,
+			on_stdout = function(_, data, _)
+				collect_output(stdout_chunks, data)
+			end,
+			on_stderr = function(_, data, _)
+				collect_output(stderr_chunks, data)
+			end,
+			stdout_buffered = true,
+			stderr_buffered = true,
+			timeout = timeout_ms,
+		})
+
+		if job_id <= 0 then
+			last_error = { code = job_id, stdout = "", stderr = "Failed to start job" }
+			retry_count = retry_count + 1
+			if retry_count < max_retries then
+				local delay = math.min(1000 * (2 ^ (retry_count - 1)), 10000)
+				vim.defer_fn(attempt, delay)
+			else
+				if on_failure then
+					on_failure(last_error.code, "", last_error.stderr, retry_count)
+				end
+			end
+		end
+	end
+	attempt() -- Start the first attempt
+end
+
 ---@param file_name string # name of the file for which to delete buffers
 _H.delete_buffer = function(file_name)
 	-- iterate over buffer list and close all buffers with the same name
