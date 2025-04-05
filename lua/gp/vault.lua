@@ -191,7 +191,7 @@ V.refresh_vertex_bearer = function(callback)
 			logger.error("vault refresh_vertex_bearer: max retries reached")
 		end
 	end
-	helpers.run_with_timeout_retry(refresh_cmd, 5000, 3, on_success, on_failure)
+	helpers.run_with_timeout_retry(refresh_cmd, 5000, 5, on_success, on_failure)
 end
 
 V.refresh_copilot_bearer = function(callback)
