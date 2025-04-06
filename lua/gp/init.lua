@@ -701,6 +701,7 @@ M.open_buf = function(file_name, target, kind, toggle)
 		vim.api.nvim_command("botright split " .. file_name)
 	elseif target == M.BufTarget.vsplit then
 		vim.api.nvim_command("botright vsplit " .. file_name)
+		vim.api.nvim_command("vertical resize 50%")
 	elseif target == M.BufTarget.tabnew then
 		vim.api.nvim_command("tabnew " .. file_name)
 	else
