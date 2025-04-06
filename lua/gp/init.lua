@@ -698,9 +698,9 @@ M.open_buf = function(file_name, target, kind, toggle)
 		vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "" })
 		vim.api.nvim_command("silent write! " .. file_name)
 	elseif target == M.BufTarget.split then
-		vim.api.nvim_command("split " .. file_name)
+		vim.api.nvim_command("botright split " .. file_name)
 	elseif target == M.BufTarget.vsplit then
-		vim.api.nvim_command("vsplit " .. file_name)
+		vim.api.nvim_command("botright vsplit " .. file_name)
 	elseif target == M.BufTarget.tabnew then
 		vim.api.nvim_command("tabnew " .. file_name)
 	else
