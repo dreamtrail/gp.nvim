@@ -331,11 +331,7 @@ D.prepare_payload = function(messages, model, provider)
 		end
 		-- add google search if model.search is true
 		if model.search and model.search == "on" then
-			payload.tools = {
-				{
-					google_search = vim.empty_dict(),
-				},
-			}
+			payload.tools = { { google_search = vim.empty_dict() } }
 		end
 	end
 
