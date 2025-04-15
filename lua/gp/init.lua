@@ -730,6 +730,7 @@ M.open_buf = function(file_name, target, kind, toggle)
 	end
 
 	vim.api.nvim_set_option_value("buflisted", false, { buf = buf })
+	vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
 
 	if target == M.BufTarget.split or target == M.BufTarget.vsplit then
 		close = function()
