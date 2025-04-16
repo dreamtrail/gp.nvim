@@ -138,7 +138,9 @@ end
 ---@return integer | nil
 D.is_other_reason_model = function(model)
 	model = model:lower()
-	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1"))) or model:find("qwq")
+	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1")))
+		or model:find("qwq")
+		or model:find("grok%-3")
 end
 
 ---@param message string
