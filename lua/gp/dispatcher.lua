@@ -331,6 +331,9 @@ D.prepare_payload = function(messages, model, provider)
 		if system ~= "" then
 			payload.system_instruction = { parts = { text = system } }
 		end
+		if model.thinking_budget then
+			payload.generationConfig.thinking_config = { thinking_budget = model.thinking_budget }
+		end
 		-- add google search if model.search is true
 		if model.search and model.search == "on" then
 			payload.tools = { { google_search = vim.empty_dict() } }
