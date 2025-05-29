@@ -608,10 +608,26 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 
 				if qt.provider == "google" or qt.provider == "vertex" then
 					if line:match('"text":') then
-						content = vim.json.decode("{" .. line .. "}").text
+						pcall(function()
+							content = vim.json.decode("{" .. line .. "}").text
+						end)
+						-- If the content is thinking content, wrap it in <think> tags
+						if (type(content) ~= "string" or content == "") and line:sub(-1) == "," then
+							pcall(function()
+								content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
+							end)
+							if total_reasoning_length == 0 and type(content) == "string" and content ~= "" then
+								content = content:gsub("^[\n]+", "")
+								content = "<think>\n" .. content
+								total_reasoning_length = total_reasoning_length + #content
+							end
+						elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
+							content = content:gsub("^[\n]+", "")
+							content = "\n</think>\n\n" .. content
+							total_reasoning_length = -1
+						end
 					end
 				end
-
 				process_content(qt, content)
 			end
 		end
