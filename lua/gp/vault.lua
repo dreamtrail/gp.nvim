@@ -172,10 +172,10 @@ V.refresh_vertex_bearer = function(callback)
 			logger.debug("vault refresh_vertex_bearer: error in token received")
 			return false
 		end
-		-- Set expiration time to 30 minutes from now
+		-- Set expiration time to 29 minutes from now
 		state.bearer = {
 			token = token,
-			expires_at = os.time() + (60 * 30),
+			expires_at = os.time() + (60 * 29),
 		}
 		-- Save state to file
 		helpers.table_to_file(state, state_file)
