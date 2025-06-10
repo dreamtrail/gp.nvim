@@ -252,7 +252,12 @@ D.prepare_payload = function(messages, model, provider)
 	end
 
 	-- Remove <think> tags from reasoning models
-	if D.is_other_reason_model(model.model) or (provider == "anthropic" and model.reason_tokens ~= nil) then
+	if
+		D.is_other_reason_model(model.model)
+		or (provider == "anthropic" and model.reason_tokens ~= nil)
+		or provider == "google"
+		or provider == "vertex"
+	then
 		for i = 1, #messages do
 			if messages[i].role == "assistant" then
 				messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
@@ -332,7 +337,8 @@ D.prepare_payload = function(messages, model, provider)
 			payload.system_instruction = { parts = { text = system } }
 		end
 		if model.thinking_budget then
-			payload.generationConfig.thinking_config = { thinking_budget = model.thinking_budget }
+			payload.generationConfig.thinking_config =
+				{ thinking_budget = model.thinking_budget, include_thoughts = true }
 		end
 		-- add google search if model.search is true
 		if model.search and model.search == "on" then
@@ -616,6 +622,8 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							pcall(function()
 								content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
 							end)
+							-- replace "\n+" with "\n" to avoid multiple newlines
+							content = content:gsub("\n+", "\n")
 							if total_reasoning_length == 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
 								content = "<think>\n" .. content
@@ -623,7 +631,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							end
 						elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 							content = content:gsub("^[\n]+", "")
-							content = "\n</think>\n\n" .. content
+							content = "</think>\n\n" .. content
 							total_reasoning_length = -1
 						end
 					end
