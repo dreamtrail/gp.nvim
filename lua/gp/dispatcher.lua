@@ -614,8 +614,8 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 
 				if qt.provider == "google" or qt.provider == "vertex" then
 					if line:match('"text":') then
+						-- logger.debug("google/vertex line: " .. vim.inspect(line))
 						-- If the content is thinking content, wrap it in <think> tags
-						logger.debug("google/vertex line: " .. vim.inspect(line))
 						if payload.generationConfig.thinking_config and line:sub(-1) == "," then
 							pcall(function()
 								content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
