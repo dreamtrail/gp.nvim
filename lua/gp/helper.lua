@@ -434,6 +434,21 @@ _H.create_user_command = function(cmd_name, cmd_func, completion, desc)
 	})
 end
 
+---Executes a shell command synchronously and captures its output.
+---@param cmd_string string # The command to execute.
+---@return string|nil # Returns the trimmed stdout of the command, or nil on error.
+---@return string|nil # On error, returns an error message containing the exit code and stderr.
+_H.execute_shell_command = function(cmd_string)
+	vim.fn.setenv("PYTHONIOENCODING", "utf-8")
+	local result = vim.fn.system(cmd_string)
+	vim.fn.setenv("PYTHONIOENCODING", "")
+	if vim.v.shell_error ~= 0 then
+		return nil, "Command failed with exit code " .. vim.v.shell_error .. ": " .. result
+	end
+	local trimmed_result = result:gsub("%s*$", "")
+	return trimmed_result
+end
+
 ---@param file_name string # name of the file
 ---@return string # returns mime type of the file
 _H.guess_mime_type = function(file_name)
