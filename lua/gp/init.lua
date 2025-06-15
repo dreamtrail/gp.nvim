@@ -1098,13 +1098,30 @@ M.chat_respond = function(params)
 		false,
 		{ "", agent_prefix .. agent_suffix, "" }
 	)
-	-- remove the fisrt	message if the content is empty for the system prompt
+	-- remove the first	message if the content is empty for the system prompt
 	if messages[1].content == "" then
 		table.remove(messages, 1)
 	end
 
 	-- save the buffer before sending the request
 	vim.cmd("silent write")
+
+	-- find all ^@command(cmd_string)$ commands in the buffer and execute them then replace them with the output
+	local cmd_pattern = "@command%s*%((.-)%)"
+	for _, message in ipairs(messages) do
+		if message.role == "user" and message.content:find("@command", 1, true) then
+			message.content = message.content:gsub(cmd_pattern, function(cmd_string)
+				local output, err = M.helpers.execute_shell_command(cmd_string)
+				if err then
+					M.logger.error(err)
+					return nil
+				else
+					return output
+				end
+			end)
+		end
+	end
+
 	-- call the model and write response
 	M.dispatcher.query(
 		buf,
@@ -1162,8 +1179,10 @@ M.chat_respond = function(params)
 							vim.api.nvim_err_writeln("Could not find content in message: " .. vim.inspect(message))
 							break
 						end
-						-- replace @attach(.*) with empty string
+						-- remove @attach(.*) with empty string
 						msg.content = msg.content:gsub("@attach(.*)", "")
+						-- remove @command(cmd_string) commands
+						msg.content = msg.content:gsub(cmd_pattern, "")
 						if msg.content and #msg.content > 2000 then
 							msg.content = M.helpers.truncate_string_at_newline(msg.content, 2000)
 						elseif msg.parts and #msg.parts[1].text > 2000 then
