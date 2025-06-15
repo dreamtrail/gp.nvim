@@ -528,8 +528,8 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				if line ~= "" and line ~= nil then
 					qt.raw_response = qt.raw_response .. line .. "\n"
 				end
-				local content = ""
 				line = line:gsub("^data: ", "")
+				local content = ""
 
 				if qt.provider == "google" or qt.provider == "vertex" then
 					if line:match('"text":') then
@@ -557,8 +557,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							end
 						end
 					end
-				end
-				if qt.provider == "anthropic" and line ~= nil then
+				elseif qt.provider == "anthropic" and line ~= nil then
 					if line:match('"text":') then
 						if line:match("content_block_start") or line:match("content_block_delta") then
 							line = vim.json.decode(line)
@@ -594,39 +593,37 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							is_anthropic_reasoner = false
 						end
 					end
-				end
-				pcall(function()
+				elseif line:match("choices") and line:match("delta") and line:match("content") then
 					line = vim.json.decode(line)
-				end)
-				if line.choices and line.choices[1] and line.choices[1].delta then
-					if line.choices[1].delta.content then
-						content = line.choices[1].delta.content
-					end
-					if is_other_reasoner then
-						if type(content) ~= "string" or content == "" then
-							local reasoning_content = line.choices[1].delta.reasoning_content
-								or line.choices[1].delta.reasoning
-							if type(reasoning_content) == "string" and reasoning_content ~= "" then
-								local len = #reasoning_content
-								if total_reasoning_length == 0 and len > 0 then
-									reasoning_content = reasoning_content:gsub("^[\n]+", "")
-									content = "<think>\n" .. reasoning_content
-								else
-									content = reasoning_content
+					if line.choices and line.choices[1] and line.choices[1].delta then
+						if line.choices[1].delta.content then
+							content = line.choices[1].delta.content
+						end
+						if is_other_reasoner then
+							if type(content) ~= "string" or content == "" then
+								local reasoning_content = line.choices[1].delta.reasoning_content
+									or line.choices[1].delta.reasoning
+								if type(reasoning_content) == "string" and reasoning_content ~= "" then
+									local len = #reasoning_content
+									if total_reasoning_length == 0 and len > 0 then
+										reasoning_content = reasoning_content:gsub("^[\n]+", "")
+										content = "<think>\n" .. reasoning_content
+									else
+										content = reasoning_content
+									end
+									total_reasoning_length = total_reasoning_length + len
 								end
-								total_reasoning_length = total_reasoning_length + len
-							end
-						elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
-							content = content:gsub("^[\n]+", "")
-							if last_content and last_content:match("\n$") then
-								content = "</think>\n\n" .. content
-							else
-								content = "\n</think>\n\n" .. content
+							elseif total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
+								content = content:gsub("^[\n]+", "")
+								if last_content and last_content:match("\n$") then
+									content = "</think>\n\n" .. content
+								else
+									content = "\n</think>\n\n" .. content
+								end
 							end
 						end
 					end
 				end
-
 				process_content(qt, content)
 			end
 		end
