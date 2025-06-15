@@ -593,8 +593,14 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							is_anthropic_reasoner = false
 						end
 					end
-				elseif line:match("choices") and line:match("delta") and line:match("content") then
-					line = vim.json.decode(line)
+				else
+					pcall(function()
+						line = vim.json.decode(line)
+					end)
+					if type(line) ~= "table" then
+						logger.error("Invalid response from provider: " .. vim.inspect(line))
+						return
+					end
 					if line.choices and line.choices[1] and line.choices[1].delta then
 						if line.choices[1].delta.content then
 							content = line.choices[1].delta.content
