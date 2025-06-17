@@ -451,9 +451,9 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 	local is_other_reasoner = D.is_other_reason_model(payload.model)
 	local is_anthropic_reasoner = provider == "anthropic" and payload.thinking ~= nil
 
-	if not stream then
-		vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
-	end
+	-- if not stream then
+	-- 	vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+	-- end
 	vim.schedule(function()
 		D.show_query_start(provider)
 	end)
@@ -873,9 +873,9 @@ D.query = function(buf, provider, payload, handler, on_exit, callback, stream)
 		---@diagnostic disable-next-line: param-type-mismatch
 		query(buf, provider, payload, handler, on_exit, callback, stream)
 	end)
-	if not stream then
-		vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-	end
+	-- if not stream then
+	-- 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+	-- end
 end
 
 -- response handler
@@ -926,9 +926,9 @@ D.create_handler = function(buf, win, line, first_undojoin, prefix, cursor)
 
 		first_line = vim.api.nvim_buf_get_extmark_by_id(buf, ns_id, ex_id, {})[1]
 
-		if not qt.stream then
-			vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-		end
+		-- if not qt.stream then
+		-- 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+		-- end
 
 		local line_count = #vim.split(response, "\n")
 		vim.api.nvim_buf_set_lines(buf, first_line + finished_lines, first_line + line_count, false, {})
