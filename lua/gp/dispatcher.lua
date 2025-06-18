@@ -620,6 +620,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								else
 									content = "\n</think>\n\n" .. content
 								end
+								total_reasoning_length = -1
 							end
 						end
 					end
