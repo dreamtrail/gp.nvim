@@ -134,6 +134,10 @@ D.is_openai_reason_model = function(model)
 	return model:match("^o%d+%p?") ~= nil or model:match("^openai/o%d+%p?") ~= nil
 end
 
+D.is_google_provider = function(provider)
+	return provider:match("^google") ~= nil or provider:match("^vertex") ~= nil
+end
+
 ---@param model string
 ---@return integer | nil
 D.is_other_reason_model = function(model)
@@ -255,8 +259,7 @@ D.prepare_payload = function(messages, model, provider)
 	if
 		D.is_other_reason_model(model.model)
 		or (provider == "anthropic" and model.reason_tokens ~= nil)
-		or provider == "google"
-		or provider == "vertex"
+		or D.is_google_provider(provider)
 	then
 		for i = 1, #messages do
 			if messages[i].role == "assistant" then
@@ -267,7 +270,7 @@ D.prepare_payload = function(messages, model, provider)
 
 	local payload
 
-	if provider == "google" or provider == "vertex" then
+	if D.is_google_provider(provider) then
 		-- extract system messages and add them to the system_instruction field
 		local system = ""
 		local j = 1
@@ -409,7 +412,7 @@ D.prepare_payload = function(messages, model, provider)
 	if provider == "anthropic" then
 		payload.messages = messages
 		return payload
-	elseif provider == "google" or provider == "vertex" then
+	elseif D.is_google_provider(provider) then
 		payload.contents = messages
 		return payload
 	end
@@ -531,7 +534,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				line = line:gsub("^data: ", "")
 				local content = ""
 
-				if qt.provider == "google" or qt.provider == "vertex" then
+				if D.is_google_provider(qt.provider) then
 					if line:match('"text":') then
 						-- logger.debug("google/vertex line: " .. vim.inspect(line))
 						-- If the content is thinking content, wrap it in <think> tags
@@ -781,12 +784,12 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			"-H",
 			"api-key: " .. bearer,
 		}
-	elseif provider == "google" then
+	elseif provider:match("^google") then
 		headers = {}
 		endpoint = render.template_replace(endpoint, "{{secret}}", bearer)
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
 		payload.model = nil
-	elseif provider == "vertex" then
+	elseif provider:match("^vertex") then
 		headers = {
 			"-H",
 			"Authorization: Bearer " .. bearer,
