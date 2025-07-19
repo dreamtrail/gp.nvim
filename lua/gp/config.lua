@@ -325,6 +325,8 @@ local config = {
 	chat_stream_response = false,
 	-- show response in stream for command mode
 	command_stream_response = false,
+	-- Show thinking process in command mode
+	command_show_thinking = false,
 
 	-- how to display GpChatToggle or GpContext
 	---@type "popup" | "split" | "vsplit" | "tabnew"
