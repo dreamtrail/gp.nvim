@@ -323,6 +323,8 @@ local config = {
 	chat_prompt_buf_type = false,
 	-- show response in stream for chat mode
 	chat_stream_response = false,
+	-- Show thinking process in chat mode
+	chat_show_thinking = true,
 	-- show response in stream for command mode
 	command_stream_response = false,
 	-- Show thinking process in command mode

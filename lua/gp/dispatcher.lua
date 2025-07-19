@@ -341,7 +341,7 @@ D.prepare_payload = function(messages, model, provider)
 		end
 		if model.thinking_budget then
 			payload.generationConfig.thinking_config =
-				{ thinking_budget = model.thinking_budget, include_thoughts = true }
+				{ thinking_budget = model.thinking_budget, include_thoughts = model.thinking_budget > 0 }
 		end
 		-- add google search if model.search is true
 		if model.search and model.search == "on" then
@@ -441,7 +441,7 @@ end
 ---@param on_exit function | nil # optional on_exit handler
 ---@param callback function | nil # optional callback handler
 ---@param stream boolean # streaming flag
-local query = function(buf, provider, payload, handler, on_exit, callback, stream)
+local query = function(buf, provider, payload, handler, on_exit, callback, stream, show_thinking)
 	-- make sure handler is a function
 	if type(handler) ~= "function" then
 		logger.error(
@@ -474,6 +474,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		ns_id = nil,
 		ex_id = nil,
 		stream = stream, -- Store the stream flag
+		show_thinking = show_thinking, -- Store the show_thinking flag
 	})
 
 	local out_reader = function()
@@ -538,7 +539,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					if line:match('"text":') then
 						-- logger.debug("google/vertex line: " .. vim.inspect(line))
 						-- If the content is thinking content, wrap it in <think> tags
-						if payload.generationConfig.thinking_config and line:sub(-1) == "," then
+						if show_thinking and payload.generationConfig.thinking_config and line:sub(-1) == "," then
 							pcall(function()
 								content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
 							end)
@@ -572,7 +573,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							end
 						end
 					end
-					if is_anthropic_reasoner then
+					if show_thinking and is_anthropic_reasoner then
 						if line:match('"thinking":') then
 							if line:match("content_block_start") or line:match("content_block_delta") then
 								line = vim.json.decode(line)
@@ -602,7 +603,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 						if line.choices[1].delta.content then
 							content = line.choices[1].delta.content
 						end
-						if is_other_reasoner then
+						if show_thinking and is_other_reasoner then
 							if type(content) ~= "string" or content == "" then
 								local reasoning_content = line.choices[1].delta.reasoning_content
 									or line.choices[1].delta.reasoning
@@ -856,26 +857,26 @@ end
 ---@param on_exit function | nil # optional on_exit handler
 ---@param callback function | nil # optional callback handler
 ---@param stream boolean | nil # optional streaming flag, defaults to false
-D.query = function(buf, provider, payload, handler, on_exit, callback, stream)
+D.query = function(buf, provider, payload, handler, on_exit, callback, stream, show_thinking)
 	stream = (stream == nil) and false or stream
 	if provider == "copilot" then
 		return vault.run_with_secret(provider, function()
 			vault.refresh_copilot_bearer(function()
 				---@diagnostic disable-next-line: param-type-mismatch
-				query(buf, provider, payload, handler, on_exit, callback, stream)
+				query(buf, provider, payload, handler, on_exit, callback, stream, show_thinking)
 			end)
 		end)
 	elseif provider == "vertex" then
 		return vault.run_with_secret(provider, function()
 			vault.refresh_vertex_bearer(function()
 				---@diagnostic disable-next-line: param-type-mismatch
-				query(buf, provider, payload, handler, on_exit, callback, stream)
+				query(buf, provider, payload, handler, on_exit, callback, stream, show_thinking)
 			end)
 		end)
 	end
 	vault.run_with_secret(provider, function()
 		---@diagnostic disable-next-line: param-type-mismatch
-		query(buf, provider, payload, handler, on_exit, callback, stream)
+		query(buf, provider, payload, handler, on_exit, callback, stream, show_thinking)
 	end)
 	-- if not stream then
 	-- 	vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
