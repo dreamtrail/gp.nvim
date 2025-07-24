@@ -199,9 +199,9 @@ _H.delete_file = function(file, callback)
 	-- else
 	local success, err_or_nil = pcall(os.remove, file)
 	local file_name = file:match("([^/\\]+)$")
-	local msg = "Deleting file: " .. file_name
+	local msg = "Deleted file: " .. file_name
 	if not success then
-		msg = msg .. "\nError: " .. (err_or_nil or "Unknown error")
+		msg = "Error: " .. (err_or_nil or "Unknown error")
 	end
 
 	vim.schedule(function()
