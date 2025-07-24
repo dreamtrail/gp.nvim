@@ -197,7 +197,34 @@ _H.delete_file = function(file, callback)
 	-- if file:match("%.md$") then
 	-- 	_H.move_to_trash(file, callback)
 	-- else
-	os.remove(file)
+	local success, err_or_nil = pcall(os.remove, file)
+	local file_name = file:match("([^/\\]+)$")
+	local msg = "Deleting file: " .. file_name
+	vim.fn.jobstart(cmd, {
+		on_exit = function()
+			vim.schedule(function()
+				-- vim.api.nvim_buf_delete(0, { force = true })
+				-- get the file name from the path and display it in the notification, need to compatible with windows and linux path
+				local file_name = file_path:match("([^/\\]+)$")
+				vim.notify("Moved to trash: " .. file_name, vim.log.levels.INFO)
+				if callback then
+					callback()
+				end
+			end)
+		end,
+	})
+	if success then
+		logger.debug("File deleted successfully: " .. file)
+		if callback then
+			callback()
+		end
+	else
+		if err_or_nil then
+			logger.error("Error deleting file: " .. file .. "\nError: " .. err_or_nil)
+		else
+			logger.error("Error deleting file: " .. file)
+		end
+	end
 	-- end
 end
 
