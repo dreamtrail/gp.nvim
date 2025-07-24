@@ -194,11 +194,11 @@ _H.delete_file = function(file, callback)
 	end
 	_H.delete_buffer(file)
 	-- file file ends with .md then move to trash
-	if file:match("%.md$") then
-		_H.move_to_trash(file, callback)
-	else
-		os.remove(file)
-	end
+	-- if file:match("%.md$") then
+	-- 	_H.move_to_trash(file, callback)
+	-- else
+	os.remove(file)
+	-- end
 end
 
 ---@param file_name string # name of the file for which to get buffer
