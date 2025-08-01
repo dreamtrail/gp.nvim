@@ -256,17 +256,17 @@ D.prepare_payload = function(messages, model, provider)
 	end
 
 	-- Remove <think> tags from reasoning models
-	if
-		D.is_other_reason_model(model.model)
-		or (provider == "anthropic" and model.reason_tokens ~= nil)
-		or D.is_google_provider(provider)
-	then
-		for i = 1, #messages do
-			if messages[i].role == "assistant" then
-				messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
-			end
+	-- if
+	-- 	D.is_other_reason_model(model.model)
+	-- 	or (provider == "anthropic" and model.reason_tokens ~= nil)
+	-- 	or D.is_google_provider(provider)
+	-- then
+	for i = 1, #messages do
+		if messages[i].role == "assistant" then
+			messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
 		end
 	end
+	-- end
 
 	local payload
 
