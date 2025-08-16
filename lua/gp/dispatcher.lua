@@ -143,8 +143,8 @@ end
 D.is_other_reason_model = function(model)
 	model = model:lower()
 	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1")))
-		or model:find("qwq")
-		or model:find("grok%-3")
+		or (model:find("qwen") and model:find("thinking"))
+		or model:find("grok%-")
 end
 
 ---@param message string
