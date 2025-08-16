@@ -145,6 +145,7 @@ D.is_other_reason_model = function(model)
 	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1")))
 		or (model:find("qwen") and model:find("thinking"))
 		or model:find("grok%-")
+		or model:find("gpt%-oss") -- gpt-oss is a reason model
 end
 
 ---@param message string
