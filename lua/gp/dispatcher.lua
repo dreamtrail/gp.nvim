@@ -144,7 +144,8 @@ D.is_other_reason_model = function(model)
 	model = model:lower()
 	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1")))
 		or (model:find("qwen") and model:find("thinking"))
-		or model:find("grok%-")
+		or model:find("grok%-") -- grok is a reason model
+		or model:find("glm%-") -- glm-4.5 is a reason model
 		or model:find("gpt%-oss") -- gpt-oss is a reason model
 end
 
