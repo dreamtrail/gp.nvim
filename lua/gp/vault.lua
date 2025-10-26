@@ -8,16 +8,12 @@ local helpers = require("gp.helper")
 local default_config = require("gp.config")
 
 local V = {
-        _obfuscated_secrets = {},
-        _state = {},
-        config = {},
+	_obfuscated_secrets = {},
+	_state = {},
+	config = {},
 }
 
 local secrets = {} -- private secretes accessible only via vault.get_secret
-
-local trim = vim.trim or function(str)
-        return (str:gsub("^%s*(.-)%s*$", "%1"))
-end
 
 -- backwards compatibility
 local alias = {
@@ -149,129 +145,53 @@ V.refresh_vertex_bearer = function(callback)
 
 	local state_file = V.config.state_dir .. "/vault_vertex.json"
 
-        local state = {}
-        if vim.fn.filereadable(state_file) ~= 0 then
-                state = helpers.file_to_table(state_file) or {}
-        end
+	local state = {}
+	if vim.fn.filereadable(state_file) ~= 0 then
+		state = helpers.file_to_table(state_file) or {}
+	end
 
-        local bearer = {}
-        if type(state.bearer) == "table" then
-                bearer = state.bearer
-        end
+	local bearer = state.bearer or {}
+	-- Check if token exists and is not expired (30 minute validity)
+	if bearer.token and bearer.expires_at and bearer.expires_at > os.time() then
+		secrets.vertex_bearer = bearer.token
+		logger.debug("vault refresh_vertex_bearer: token still valid, running callback", true)
+		callback()
+		return
+	end
 
-        local cached_token = nil
-        if type(bearer.token) == "string" then
-                cached_token = trim(bearer.token)
-                if cached_token == "" then
-                        cached_token = nil
-                end
-        end
+	logger.debug("vault refresh_vertex_bearer: token expired or not found, refreshing", true)
 
-        local cached_expires_at = nil
-        if type(bearer.expires_at) == "number" then
-                cached_expires_at = bearer.expires_at
-        end
-
-        local now = os.time()
-        -- Check if token exists and is not expired (30 minute validity, refresh a minute early)
-        if cached_token and cached_expires_at and cached_expires_at > (now + 60) then
-                secrets.vertex_bearer = cached_token
-                logger.debug("vault refresh_vertex_bearer: token still valid, running callback", true)
-                callback()
-                return
-        end
-
-        if cached_token then
-                logger.debug(
-                        string.format(
-                                "vault refresh_vertex_bearer: cached token stale (expires_at=%s, now=%s)",
-                                tostring(cached_expires_at),
-                                tostring(now)
-                        ),
-                        true
-                )
-        else
-                logger.debug("vault refresh_vertex_bearer: token expired or not found, refreshing", true)
-        end
-
-        local refresh_cmd = secrets.vertex
-        if type(refresh_cmd) ~= "string" or refresh_cmd == "" then
-                logger.error("vault refresh_vertex_bearer: vertex refresh command not configured", true)
-                return
-        end
-        local on_success = function(stdout, stderr)
-                local stderr_trimmed = trim(stderr or "")
-                if stderr_trimmed ~= "" then
-                        logger.debug(
-                                "vault refresh_vertex_bearer: stderr received while refreshing token: "
-                                        .. stderr_trimmed,
-                                true
-                        )
-                        return false
-                end
-
-                local lines = vim.split(stdout or "", "\n", { trimempty = true })
-                local trimmed_lines = {}
-                for _, line in ipairs(lines) do
-                        local trimmed = trim(line)
-                        if trimmed ~= "" then
-                                table.insert(trimmed_lines, trimmed)
-                        end
-                end
-
-                if vim.tbl_isempty(trimmed_lines) then
-                        logger.debug("vault refresh_vertex_bearer: empty token received", true)
-                        return false
-                end
-
-                local token = trimmed_lines[#trimmed_lines]
-                if token:find("%s") then
-                        logger.debug("vault refresh_vertex_bearer: whitespace found in token", true)
-                        return false
-                end
-
-                if #trimmed_lines > 1 then
-                        logger.debug(
-                                "vault refresh_vertex_bearer: extra stdout lines ignored: "
-                                        .. table.concat(trimmed_lines, " | ", 1, #trimmed_lines - 1),
-                                true
-                        )
-                end
-
-                if token:match("ERROR") then
-                        logger.debug("vault refresh_vertex_bearer: error in token received", true)
-                        return false
-                end
-
-                local refreshed_at = os.time()
-                -- Set expiration time to 25 minutes from now
-                state.bearer = {
-                        token = token,
-                        expires_at = refreshed_at + (60 * 25),
-                        refreshed_at = refreshed_at,
-                }
-                -- Save state to file
-                helpers.table_to_file(state, state_file)
-                -- Set the token in secrets
-                secrets.vertex_bearer = token
-                if #token > 6 then
-                        V._obfuscated_secrets.vertex_bearer = token:sub(1, 3)
-                                .. string.rep("*", #token - 6)
-                                .. token:sub(-3)
-                else
-                        V._obfuscated_secrets.vertex_bearer = string.rep("*", #token)
-                end
-                logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
-                callback()
-                return true
-        end
-        local on_failure = function(code, stdout, stderr, retry_count)
-                logger.error(string.format("vault refresh_vertex_bearer: command failed: %d, %s, %s", code, stdout, stderr))
-                if retry_count >= 3 then
-                        logger.error("vault refresh_vertex_bearer: max retries reached")
-                end
-        end
-        helpers.run_with_timeout_retry(refresh_cmd, 5000, 5, on_success, on_failure)
+	local refresh_cmd = secrets.vertex
+	local on_success = function(output, _)
+		local token = output:match("^%s*(.-)%s*$")
+		if not string.match(token, "%S") then
+			logger.debug("vault refresh_vertex_bearer: empty token received")
+			return false
+		end
+		if string.match(token, "ERROR") then
+			logger.debug("vault refresh_vertex_bearer: error in token received")
+			return false
+		end
+		-- Set expiration time to 25 minutes from now
+		state.bearer = {
+			token = token,
+			expires_at = os.time() + (60 * 25),
+		}
+		-- Save state to file
+		helpers.table_to_file(state, state_file)
+		-- Set the token in secrets
+		secrets.vertex_bearer = token
+		logger.debug("vault refresh_vertex_bearer: token refreshed, running callback", true)
+		callback()
+		return true
+	end
+	local on_failure = function(code, stdout, stderr, retry_count)
+		logger.error(string.format("vault refresh_vertex_bearer: command failed: %d, %s, %s", code, stdout, stderr))
+		if retry_count >= 3 then
+			logger.error("vault refresh_vertex_bearer: max retries reached")
+		end
+	end
+	helpers.run_with_timeout_retry(refresh_cmd, 5000, 5, on_success, on_failure)
 end
 
 V.refresh_copilot_bearer = function(callback)
