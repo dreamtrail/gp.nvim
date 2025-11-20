@@ -541,7 +541,11 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					if line:match('"text":') then
 						-- logger.debug("google/vertex line: " .. vim.inspect(line))
 						-- If the content is thinking content, wrap it in <think> tags
-						if show_thinking and payload.generationConfig.thinking_config and line:sub(-1) == "," then
+						if
+							show_thinking
+							and payload.generationConfig.thinking_config
+							and line:sub(-8) == '\\n\\n\\n",'
+						then
 							pcall(function()
 								content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
 							end)
@@ -554,7 +558,11 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							end
 						else
 							pcall(function()
-								content = vim.json.decode("{" .. line .. "}").text
+								if line:sub(-1) == "," then
+									content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
+								else
+									content = vim.json.decode("{" .. line .. "}").text
+								end
 							end)
 							if total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
