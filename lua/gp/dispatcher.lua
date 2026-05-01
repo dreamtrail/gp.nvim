@@ -142,8 +142,9 @@ end
 ---@return integer | nil
 D.is_other_reason_model = function(model)
 	model = model:lower()
-	return (model:find("deepseek") and (model:find("reasoner") or model:find("r1") or model:find("v3.")))
-		or ((model:find("qwen") or model:find("k2")) and model:find("thinking"))
+	return model:find("deepseek")
+		or model:find("qwen") -- qwen is a reason model
+		or model:find("k2") -- k2 is a reason model
 		or model:find("grok%-") -- grok is a reason model
 		or model:find("glm%-") -- glm-4.5 is a reason model
 		or model:find("gpt%-oss") -- gpt-oss is a reason model
@@ -344,6 +345,9 @@ D.prepare_payload = function(messages, model, provider)
 		if model.thinking_budget then
 			payload.generationConfig.thinking_config =
 				{ thinking_budget = model.thinking_budget, include_thoughts = model.thinking_budget > 0 }
+		elseif model.thinking_level then
+			payload.generationConfig.thinking_config =
+				{ thinking_level = model.thinking_level, include_thoughts = true }
 		end
 		-- add google search if model.search is true
 		if model.search and model.search == "on" then
@@ -530,7 +534,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 			end
 
 			local lines = vim.split(lines_chunk, "\n")
-			for _, line in ipairs(lines) do
+			for n, line in ipairs(lines) do
 				if line ~= "" and line ~= nil then
 					qt.raw_response = qt.raw_response .. line .. "\n"
 				end
@@ -540,21 +544,23 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 				if D.is_google_provider(qt.provider) then
 					if line:match('"text":') then
 						-- logger.debug("google/vertex line: " .. vim.inspect(line))
+						local next_line = lines[n + 1] or ""
+						-- logger.debug("google/vertex next line: " .. vim.inspect(next_line))
 						-- If the content is thinking content, wrap it in <think> tags
-						if
-							show_thinking
-							and payload.generationConfig.thinking_config
-							and line:sub(-8) == '\\n\\n\\n",'
-						then
-							pcall(function()
-								content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
-							end)
-							-- replace "\n+" with "\n" to avoid multiple newlines
-							content = content:gsub("\n+", "\n")
-							if total_reasoning_length == 0 and type(content) == "string" and content ~= "" then
-								content = content:gsub("^[\n]+", "")
-								content = "<think>\n" .. content
-								total_reasoning_length = total_reasoning_length + #content
+						if next_line:match('"thought":') then
+							if qt.show_thinking then
+								pcall(function()
+									content = vim.json.decode("{" .. line:sub(1, -2) .. "}").text
+								end)
+								-- replace "\n+" with "\n" to avoid multiple newlines
+								content = content:gsub("\n+", "\n")
+								if total_reasoning_length == 0 and type(content) == "string" and content ~= "" then
+									content = content:gsub("^[\n]+", "")
+									--- print the content of qt
+									-- logger.debug("qt: " .. vim.inspect(qt))
+									content = "<think>\n" .. content
+									total_reasoning_length = total_reasoning_length + #content
+								end
 							end
 						else
 							pcall(function()
@@ -566,7 +572,11 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							end)
 							if total_reasoning_length > 0 and type(content) == "string" and content ~= "" then
 								content = content:gsub("^[\n]+", "")
-								content = "</think>\n\n" .. content
+								if payload.model:match("gemma") then
+									content = "\n</think>\n\n" .. content
+								else
+									content = "</think>\n\n" .. content
+								end
 								total_reasoning_length = -1
 							end
 						end
@@ -609,6 +619,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				elseif line:match("choices") and line:match("delta") and line:match("content") then
 					line = vim.json.decode(line)
+					-- logger.debug("line: " .. vim.inspect(line))
 					if line.choices and line.choices[1] and line.choices[1].delta then
 						if line.choices[1].delta.content then
 							content = line.choices[1].delta.content
@@ -799,14 +810,14 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		headers = {}
 		endpoint = render.template_replace(endpoint, "{{secret}}", bearer)
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
-		payload.model = nil
+		-- payload.model = nil
 	elseif provider:match("^vertex") then
 		headers = {
 			"-H",
 			"Authorization: Bearer " .. bearer,
 		}
 		endpoint = render.template_replace(endpoint, "{{model}}", payload.model)
-		payload.model = nil
+		-- payload.model = nil
 	elseif provider == "anthropic" then
 		headers = {
 			"-H",
