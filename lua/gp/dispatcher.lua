@@ -617,7 +617,11 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							is_anthropic_reasoner = false
 						end
 					end
-				elseif line:match("choices") and line:match("delta") and line:match("content") then
+				elseif
+					line:match("choices")
+					and line:match("delta")
+					and (line:match("content") or line:match("reasoning"))
+				then
 					line = vim.json.decode(line)
 					-- logger.debug("line: " .. vim.inspect(line))
 					if line.choices and line.choices[1] and line.choices[1].delta then
