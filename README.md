@@ -15,6 +15,9 @@
 
 <br>
 
+> **Fork status**
+> This repository is a maintained fork of `gp.nvim`, continued after upstream development slowed/stopped.
+
 **ChatGPT like sessions, Instructable text/code operations, Speech to text and Image generation in your favorite editor.**
 
 <p align="left">
@@ -59,6 +62,17 @@ Trying to keep things as native as possible - reusing and integrating well with 
     (dicating comments and notes, asking gpt questions, giving instructions for code operations, ..)
 - **Image generation**
   - be even less tempted to open the browser with the ability to generate images directly from Neovim
+
+# Maintainer / contributor docs
+
+This README focuses on user-facing setup and usage. Contributor and maintainer notes for this fork live in:
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Implementation notes](docs/IMPLEMENTATION.md)
+- [Contributor setup](docs/SETUP.md)
+- [Testing and validation](docs/TESTING.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Maintainers guide](docs/MAINTAINERS.md)
 
 # Install
 
