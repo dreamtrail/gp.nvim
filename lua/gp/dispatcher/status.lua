@@ -4,19 +4,32 @@
 
 local M = {}
 
+local function close_timer(state)
+	local timer = state.refresh_timer
+	state.refresh_timer = nil
+	if timer and not timer:is_closing() then
+		if timer:is_active() then
+			timer:stop()
+		end
+		timer:close()
+	end
+end
+
 M.update_status_msg = function(state, msg)
 	---@diagnostic disable-next-line: undefined-field
 	local current_time = vim.loop.now()
 	local update_interval_ms = 500
+	local last_refresh_time = state.last_refresh_time or 0
+	local timer = state.refresh_timer
 
-	-- If we recently updated, schedule this update for later
-	if current_time - state.last_refresh_time < update_interval_ms then
+	-- If we recently updated and have an active timer, schedule this update for later
+	if timer and not timer:is_closing() and current_time - last_refresh_time < update_interval_ms then
 		state.pending_message = msg
 
 		-- If timer isn't already scheduled, schedule it
-		if not state.refresh_timer:is_active() then
-			state.refresh_timer:start(
-				update_interval_ms - (current_time - state.last_refresh_time),
+		if not timer:is_active() then
+			timer:start(
+				update_interval_ms - (current_time - last_refresh_time),
 				0,
 				vim.schedule_wrap(function()
 					if state.pending_message then
@@ -46,6 +59,7 @@ M.show_query_start = function(state, provider)
 	end
 	vim.o.statusline = "%{g:status_msg}%=%l,%c %P" -- Adjust formatting as needed
 	local msg = "Querying " .. provider:gsub("^%l", string.upper) .. " ..."
+	close_timer(state)
 	---@diagnostic disable-next-line: undefined-field
 	state.refresh_timer = vim.loop.new_timer()
 	state.last_refresh_time = 0
@@ -61,9 +75,11 @@ end
 
 -- Print the end of the query
 M.print_query_end = function(state)
-	vim.o.laststatus = vim.g.gp_laststatus
-	state.refresh_timer:close()
-	state.refresh_timer = nil
+	if type(vim.g.gp_laststatus) == "number" then
+		vim.o.laststatus = vim.g.gp_laststatus
+	end
+	state.pending_message = nil
+	close_timer(state)
 end
 
 return M

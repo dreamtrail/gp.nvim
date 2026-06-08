@@ -93,6 +93,7 @@ vim.fn.mkdir(workspace, "p")
 
 local gp = require("gp")
 local dispatcher = require("gp.dispatcher")
+local dispatcher_status = require("gp.dispatcher.status")
 
 local expected_commands = {
 	"GpAgent",
@@ -162,6 +163,35 @@ test("dispatcher facade exposes compatibility aliases", function()
 		assert_eq(type(dispatcher[alias]), "function", "dispatcher." .. alias .. " compatibility")
 	end
 	assert_eq(type(dispatcher._parse_openai_response), "function", "dispatcher openai parser exposed for tests")
+end)
+
+test("dispatcher status timer cleanup is nil-safe and idempotent", function()
+	local original_laststatus = vim.o.laststatus
+	local original_statusline = vim.o.statusline
+	local original_gp_laststatus = vim.g.gp_laststatus
+	local original_status_msg = vim.g.status_msg
+	local state = {}
+
+	local ok, err = xpcall(function()
+		dispatcher_status.print_query_end(state)
+		dispatcher_status.show_query_progress(state, "progress before start")
+		dispatcher_status.print_query_end(state)
+		dispatcher_status.show_query_start(state, "openai")
+		dispatcher_status.show_query_start(state, "openai")
+		dispatcher_status.print_query_end(state)
+		dispatcher_status.print_query_end(state)
+	end, debug.traceback)
+
+	if state.refresh_timer and not state.refresh_timer:is_closing() then
+		state.refresh_timer:close()
+	end
+	vim.o.laststatus = original_laststatus
+	vim.o.statusline = original_statusline
+	vim.g.gp_laststatus = original_gp_laststatus
+	vim.g.status_msg = original_status_msg
+
+	assert_true(ok, "status timer cleanup is safe: " .. tostring(err))
+	assert_eq(state.refresh_timer, nil, "status timer cleared after repeated cleanup")
 end)
 
 test("setup registers exact default command set with tools command", function()
