@@ -4,7 +4,7 @@ This document explains the main implementation seams for maintainers of this for
 
 ## Setup and configuration
 
-The public entry point is `require("gp").setup(opts)` in `lua/gp/init.lua`.
+The public entry point is `require("gp").setup(opts)` in `lua/gp/init.lua`. `init.lua` acts as a facade: extracted modules attach compatibility functions back onto the main `gp` table, so existing hooks can continue to call `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.get_chat_agent`, and related helpers.
 
 Setup performs these steps:
 
@@ -24,7 +24,7 @@ Nested config tables are handled deliberately: `hooks` and `agents` are merged b
 
 ## Command registration
 
-Commands are registered with `helpers.create_user_command()`.
+Commands are registered with `helpers.create_user_command()` from facade-owned setup logic.
 
 There are three command groups:
 
@@ -34,7 +34,7 @@ There are three command groups:
 
 The default command prefix is `Gp`, so `ChatNew` becomes `:GpChatNew`. User hooks can override built-in command names because built-ins are skipped when a hook with the same name exists.
 
-`M.prepare_commands()` generates the text/code prompt commands from `M.Target`, including:
+`M.prepare_commands()` in `lua/gp/init.lua` generates the text/code prompt commands from `M.Target`, including:
 
 - `GpRewrite`
 - `GpAppend`
@@ -51,13 +51,13 @@ When Whisper is enabled, matching `GpWhisper*` variants are added.
 
 Chats are regular markdown files in the configured chat directory. Chat templates come from `lua/gp/defaults.lua` and contain a header section before the first `---` separator.
 
-Important chat behavior lives in `lua/gp/init.lua`:
+Important chat behavior is split across smaller modules:
 
-- `new_chat()` creates the markdown file and opens it in the requested target;
-- `prep_chat()` sets markdown options and buffer-local shortcuts;
-- `chat_respond()` parses markdown messages into `{ role, content }` records;
-- `ChatFinder` searches existing chat files and previews matches;
-- `ChatDelete` deletes the active chat after optional confirmation.
+- `lua/gp/chat.lua`: `new_chat()` creates the markdown file and opens it in the requested target; `prep_chat()` sets markdown options and buffer-local shortcuts; `ChatDelete` deletes the active chat after optional confirmation.
+- `lua/gp/chat/respond.lua`: `chat_respond()` parses markdown messages into `{ role, content }` records and orchestrates provider calls/follow-up prompts.
+- `lua/gp/init.lua`: `ChatFinder` searches existing chat files and previews matches.
+
+The extracted modules attach these functions to the same `M` table used by `require("gp")`, preserving existing public aliases.
 
 Chat parsing depends on configured user and assistant prefixes. Header fields may override the agent model/provider/role for that chat.
 
@@ -77,14 +77,22 @@ The target controls where model output is written:
 
 ## Provider dispatch
 
-`lua/gp/dispatcher.lua` is responsible for provider-facing request and response handling.
+`lua/gp/dispatcher.lua` is responsible for provider-facing setup and query execution, while submodules own focused helper logic.
 
 Key paths:
 
 - `D.setup(opts)` merges configured providers with defaults and registers provider secrets with `vault`;
-- `D.prepare_payload(messages, model, provider)` converts internal messages into the target provider format;
+- `D.prepare_payload(messages, model, provider)` is a compatibility alias to `lua/gp/dispatcher/payload.lua` and converts internal messages into the target provider format;
 - `D.query(...)` resolves provider secrets and delegates to the internal `query` function;
-- `D.create_handler(...)` creates buffer writers for streaming and buffered responses.
+- `D.create_handler(...)` is a compatibility alias to `lua/gp/dispatcher/handler.lua` and creates buffer writers for streaming and buffered responses.
+
+Dispatcher helper modules:
+
+- `dispatcher/reasoning.lua`: model/provider classification helpers;
+- `dispatcher/attachments.lua`: `@attach(path)` parsing and inline attachment conversion;
+- `dispatcher/payload.lua`: provider-specific payload conversion;
+- `dispatcher/status.lua`: statusline progress updates;
+- `dispatcher/handler.lua`: response insertion into buffers.
 
 Provider-specific behavior includes:
 

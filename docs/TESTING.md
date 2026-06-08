@@ -1,8 +1,8 @@
 # Testing and Validation
 
-This repository currently does not include a formal automated test suite, test runner config, or committed lint/format config. Do not claim automated coverage exists until such a suite is added.
+This repository includes a minimal headless Neovim characterization test harness in `tests/run.lua`, invoked by `scripts/test.sh`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, and representative dispatcher payload behavior.
 
-Use the checks below to validate changes according to their scope.
+It is not a comprehensive unit/integration test suite. Use the checks below to validate changes according to their scope, and add focused characterization coverage when refactoring core behavior.
 
 ## Documentation-only changes
 
@@ -31,22 +31,36 @@ print('README docs links OK')
 PY
 ```
 
+## Headless characterization tests
+
+Run the committed headless test harness for Lua source changes:
+
+```sh
+./scripts/test.sh
+```
+
+The script uses temporary XDG directories and a dummy API key, then runs `tests/run.lua` in a clean headless Neovim session.
+
 ## Lua load/syntax smoke checks
 
 When Lua source changes, perform at least a load smoke check in Neovim. Keep secrets out of the environment unless a provider call is intentionally being tested.
 
 ```sh
-nvim --headless --cmd "set rtp+=." \
+nvim --headless --clean -u NONE -i NONE --cmd "set rtp+=." \
   -c "lua require('gp')" \
   -c "qa"
 ```
 
-If setup behavior changed, also smoke setup with a local/minimal config:
+If setup behavior changed, also smoke setup with a local/minimal config and temporary XDG directories:
 
 ```sh
-nvim --headless --cmd "set rtp+=." \
-  -c "lua require('gp').setup({ providers = { openai = {} }, image = { disable = true }, whisper = { disable = true } })" \
+TMPDIR="$(mktemp -d)"
+XDG_DATA_HOME="$TMPDIR/data" XDG_CACHE_HOME="$TMPDIR/cache" XDG_STATE_HOME="$TMPDIR/state" \
+OPENAI_API_KEY=dummy \
+nvim --headless --clean -u NONE -i NONE --cmd "set rtp+=." \
+  -c "lua require('gp').setup({ openai_api_key = 'dummy', image = { disable = true }, whisper = { disable = true } })" \
   -c "qa"
+rm -rf "$TMPDIR"
 ```
 
 Adjust provider disabling/enabling for the behavior under test.
@@ -81,6 +95,15 @@ Suggested smoke paths:
 - one prompt target such as `:GpPopup` or `:GpEnew` works with a configured provider.
 
 Avoid live provider calls unless you intend to spend API credits and have configured a safe test prompt.
+
+## Core refactor validation
+
+For behavior-preserving architecture refactors, check stable facade behavior:
+
+- `require("gp")` and `require("gp.dispatcher")` still load;
+- existing commands are still registered after setup;
+- compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.get_chat_agent`, `dispatcher.prepare_payload`, and `dispatcher.create_handler` still exist;
+- representative payload tests still pass, including current in-place message mutation behavior for Anthropic/Google/OpenAI reasoning payloads.
 
 ## Provider-specific validation
 

@@ -9,10 +9,16 @@ This repository is a maintained fork of `gp.nvim`, continued after upstream deve
 ├── README.md              # User-facing documentation
 ├── doc/gp.nvim.txt        # Generated vimdoc (from README via CI)
 ├── lua/gp/                # Plugin implementation
-│   ├── init.lua           # Main module, setup, commands, chat/prompt flows
+│   ├── init.lua           # Public facade, setup, prompt commands, chat finder
+│   ├── agents.lua         # Agent selection, lookup, and command handlers
+│   ├── chat.lua           # Chat buffer lifecycle and chat file commands
+│   ├── chat/respond.lua   # Chat parsing and response orchestration
+│   ├── context.lua        # Repository `.gp.md` context command/helpers
 │   ├── config.lua         # Default user configuration, providers, agents, hooks
 │   ├── defaults.lua       # Default system prompts and chat templates
-│   ├── dispatcher.lua     # Provider payloads, curl requests, response handlers
+│   ├── dispatcher.lua     # Dispatcher facade, provider setup, curl query path
+│   ├── dispatcher/        # Provider payload, attachment, status, handler helpers
+│   ├── ui/                # Shared toggle and buffer opening helpers
 │   ├── tasker.lua         # Async process/query tracking
 │   ├── vault.lua          # Secret storage and token refresh helpers
 │   ├── helper.lua         # Neovim/file utility functions
@@ -30,7 +36,7 @@ This repository is a maintained fork of `gp.nvim`, continued after upstream deve
 
 ### `lua/gp/init.lua`
 
-`init.lua` is the public entry point returned by `require("gp")`. It wires the other modules together, owns `setup(opts)`, registers default commands and hook commands, manages chat buffers, and implements prompt targets such as rewrite, append, popup, and new buffers.
+`init.lua` is the public entry point returned by `require("gp")`. It remains the stable facade for setup, command registration, prompt targets, chat finder, and compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.*`, and agent getters.
 
 Important responsibilities:
 
@@ -38,17 +44,37 @@ Important responsibilities:
 - initialize `logger`, `vault`, `dispatcher`, `imager`, and `whisper`;
 - validate and index configured agents;
 - register commands with the configured prefix, usually `Gp`;
-- prepare chat markdown buffers and repository context buffers;
-- translate command/range/selection input into provider messages;
-- call `dispatcher.query()` and write responses back into buffers.
+- keep existing hook-facing aliases stable while delegating chat, context, UI, and agent behavior to smaller modules;
+- translate prompt command/range/selection input into provider messages;
+- call `dispatcher.query()` and write prompt responses back into buffers.
 
 ### `lua/gp/config.lua`
 
 `config.lua` is the canonical default configuration. It defines default providers, agents, prompt templates, chat settings, UI styling, Whisper settings, image settings, and example hooks. The README configuration block is synchronized from this file by CI.
 
+### Chat, context, and UI modules
+
+The chat lifecycle is split out of the facade:
+
+- `lua/gp/chat.lua` owns chat detection, chat buffer preparation, chat creation/toggle/paste/delete commands, and chat buffer autocommands.
+- `lua/gp/chat/respond.lua` parses markdown chat transcripts, builds messages, expands human-authored `@command(...)` prompt snippets, dispatches provider requests, and appends follow-up prompts/topic updates.
+- `lua/gp/context.lua` owns `.gp.md` repository instructions and the `GpContext` command.
+- `lua/gp/ui/toggle.lua` owns shared popup/chat/context toggle state.
+- `lua/gp/ui/buffer.lua` owns buffer target resolution and opening files in current windows, popups, splits, vertical splits, and tabs.
+
+These modules attach functions back onto the main `gp` table to preserve compatibility for hooks and user configuration.
+
 ### `lua/gp/dispatcher.lua`
 
-`dispatcher.lua` prepares provider-specific request payloads and handles responses. It supports OpenAI-compatible providers plus provider-specific formats for Anthropic and Google/Vertex-style APIs. It also handles model-specific reasoning behavior and attachment expansion for `@attach(path)` markers.
+`dispatcher.lua` is a facade for provider setup and query execution. Provider-specific request payloads and response buffer handlers live in dispatcher submodules. It supports OpenAI-compatible providers plus provider-specific formats for Anthropic and Google/Vertex-style APIs.
+
+Dispatcher submodules:
+
+- `dispatcher/reasoning.lua` classifies reasoning models/providers;
+- `dispatcher/attachments.lua` expands `@attach(path)` markers;
+- `dispatcher/payload.lua` prepares provider-specific payloads while preserving existing message mutation behavior;
+- `dispatcher/status.lua` manages statusline progress;
+- `dispatcher/handler.lua` writes streamed/buffered responses into buffers.
 
 ### `lua/gp/tasker.lua`
 
