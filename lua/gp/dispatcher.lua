@@ -97,6 +97,24 @@ D.attach_files_in_message = attachments.attach_files_in_message
 
 D.prepare_payload = payload.prepare_payload
 
+D._is_openai_compatible_provider = function(provider)
+	provider = provider or "openai"
+	return provider ~= "anthropic" and not D.is_google_provider(provider)
+end
+
+D._parse_openai_response = function(raw_response)
+	local ok, response = pcall(vim.json.decode, raw_response)
+	if not ok or type(response) ~= "table" then
+		return nil, nil, nil, "failed to decode response: " .. tostring(response)
+	end
+	local choice = response.choices and response.choices[1]
+	local message = choice and choice.message
+	if not message then
+		return nil, nil, choice and choice.finish_reason or nil, "response missing choices[1].message"
+	end
+	return message, message.tool_calls or {}, choice.finish_reason, nil
+end
+
 -- gpt query
 ---@param buf number | nil # buffer number
 ---@param provider string # provider name
@@ -130,6 +148,9 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 		provider = provider,
 		payload = payload,
 		handler = handler,
+		response_message = nil,
+		tool_calls = nil,
+		finish_reason = nil,
 		on_exit = on_exit,
 		raw_response = "",
 		response = "",
@@ -354,24 +375,19 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 
 				local raw_response = qt.raw_response
 				local content = qt.response
-				if
-					(qt.provider == "openai" or qt.provider == "openrouter" or qt.provider == "copilot")
-					and content == ""
-					and raw_response:match("choices")
-					and raw_response:match("content")
-				then
-					local response = vim.json.decode(raw_response)
-					if
-						response.choices
-						and response.choices[1]
-						and response.choices[1].message
-						and response.choices[1].message.content
-					then
-						content = response.choices[1].message.content
-					end
-					if content and type(content) == "string" then
-						qt.response = qt.response .. content
-						handler(qid, content)
+				if D._is_openai_compatible_provider(qt.provider) and content == "" and raw_response:match("choices") then
+					local message, tool_calls, finish_reason, parse_err = D._parse_openai_response(raw_response)
+					if message then
+						qt.response_message = message
+						qt.tool_calls = tool_calls
+						qt.finish_reason = finish_reason
+						content = message.content or ""
+						if content and type(content) == "string" and content ~= "" then
+							qt.response = qt.response .. content
+							handler(qid, content)
+						end
+					else
+						logger.warning(qt.provider .. " response parse failed: " .. tostring(parse_err))
 					end
 				end
 
@@ -397,7 +413,7 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 					end
 				end
 				-- if the response is empty, log an error
-				if qt.response == "" then
+				if qt.response == "" and not (qt.tool_calls and #qt.tool_calls > 0) then
 					logger.error(qt.provider .. " response is empty: \n" .. vim.inspect(qt.raw_response))
 				end
 				-- clear the speed message and highlight

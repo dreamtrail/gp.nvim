@@ -111,6 +111,7 @@ M.setup = function(gp)
 		local system_prompt = gp.agents[name].system_prompt
 		local provider = gp.agents[name].provider
 		local stream = gp.agents[name].stream
+		local tools = gp.agents[name].tools
 		gp.logger.debug("getting chat agent: " .. name)
 		return {
 			cmd_prefix = cmd_prefix,
@@ -119,6 +120,7 @@ M.setup = function(gp)
 			system_prompt = system_prompt,
 			provider = provider,
 			stream = stream,
+			tools = tools,
 		}
 	end
 end

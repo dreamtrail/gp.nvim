@@ -97,6 +97,23 @@ local config = {
 	-- to use agent for chat set chat = true, for command set command = true
 	-- to remove some default agent completely set it like:
 	-- agents = {  { name = "ChatGPT3-5", disable = true, }, ... },
+	-- native chat tools are opt-in per chat agent; no default agents enable them.
+	-- example:
+	-- {
+	-- 	provider = "openai",
+	-- 	name = "ChatGPT4oTools",
+	-- 	chat = true,
+	-- 	command = false,
+	-- 	model = { model = "gpt-4o", temperature = 1.0 },
+	-- 	system_prompt = require("gp.defaults").chat_system_prompt,
+	-- 	tools = {
+	-- 		enabled = { "read", "write", "edit", "run" },
+	-- 		workspace_only = true,
+	-- 		write = { confirm = true },
+	-- 		edit = { confirm = true },
+	-- 		run = { allowed_commands = { "make", "npm", "pytest" } },
+	-- 	},
+	-- },
 	agents = {
 		{
 			name = "ExampleDisabledAgent",

@@ -10,13 +10,29 @@ local M = {}
 ---@param messages table
 ---@param model string | table
 ---@param provider string | nil
-M.prepare_payload = function(messages, model, provider)
+---@param opts table | nil # optional payload overrides, e.g. { stream=false, tools={...}, tool_choice="auto" }
+M.prepare_payload = function(messages, model, provider, opts)
+	opts = opts or {}
+	local openai_tools = opts.tools
+	local tool_choice = opts.tool_choice
+	local stream_override = opts.stream
+	local is_openai_compatible = not reasoning.is_google_provider(provider or "") and provider ~= "anthropic"
+
 	if type(model) == "string" then
-		return {
+		local stream = true
+		if stream_override ~= nil then
+			stream = stream_override
+		end
+		local result = {
 			model = model,
-			stream = true,
+			stream = stream,
 			messages = messages,
 		}
+		if is_openai_compatible and openai_tools then
+			result.tools = openai_tools
+			result.tool_choice = tool_choice or "auto"
+		end
+		return result
 	end
 
 	-- Remove <think> tags from reasoning models
@@ -26,7 +42,7 @@ M.prepare_payload = function(messages, model, provider)
 	-- 	or reasoning.is_google_provider(provider)
 	-- then
 	for i = 1, #messages do
-		if messages[i].role == "assistant" then
+		if messages[i].role == "assistant" and type(messages[i].content) == "string" then
 			messages[i].content = messages[i].content:gsub("^<think>.-</think>[\n]*", "")
 		end
 	end
@@ -185,10 +201,16 @@ M.prepare_payload = function(messages, model, provider)
 	end
 
 	payload = vim.deepcopy(model)
-	if payload.stream == nil then
+	if stream_override ~= nil then
+		payload.stream = stream_override
+	elseif payload.stream == nil then
 		payload.stream = true
 	end
 	payload.messages = messages
+	if is_openai_compatible and openai_tools then
+		payload.tools = openai_tools
+		payload.tool_choice = tool_choice or "auto"
+	end
 
 	-- If it's a OpenAI reason model, we change the role from "system" to "developer"
 	if reasoning.is_openai_reason_model(payload.model) then

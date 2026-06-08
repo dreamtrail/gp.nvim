@@ -6,6 +6,228 @@ local config = require("gp.config")
 
 local M = {}
 
+local function append_lines(gp, buf, lines)
+	local last_content_line = gp.helpers.last_content_line(buf)
+	gp.helpers.undojoin(buf)
+	vim.api.nvim_buf_set_lines(buf, last_content_line, last_content_line, false, lines)
+end
+
+local function append_text(gp, buf, text)
+	append_lines(gp, buf, vim.split(text, "\n", { plain = true }))
+	pcall(function()
+		vim.cmd("silent write")
+	end)
+end
+
+local function tool_call_args(call)
+	local raw = call and call["function"] and call["function"].arguments or "{}"
+	if raw == "" then
+		raw = "{}"
+	end
+	local ok, args = pcall(vim.json.decode, raw)
+	if ok and type(args) == "table" then
+		return args
+	end
+	return { error = "invalid JSON arguments", raw = raw }
+end
+
+local function finish_chat(gp, buf, win, headers, messages, cmd_pattern)
+	-- write user prompt
+	local last_content_line = gp.helpers.last_content_line(buf)
+	gp.helpers.undojoin(buf)
+	vim.api.nvim_buf_set_lines(buf, last_content_line, last_content_line, false, { "", gp.config.chat_user_prefix, "" })
+
+	-- delete whitespace lines at the end of the file
+	last_content_line = gp.helpers.last_content_line(buf)
+	gp.helpers.undojoin(buf)
+	vim.api.nvim_buf_set_lines(buf, last_content_line, -1, false, {})
+	-- insert a new line at the end of the file
+	gp.helpers.undojoin(buf)
+	vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "" })
+
+	-- if topic is ?, then generate it
+	if headers.topic == "?" then
+		local topic_messages = { { role = "system", content = gp.config.chat_topic_gen_prompt } }
+		for _, message in ipairs(messages) do
+			if message.role ~= "system" then
+				local msg = { role = message.role }
+				if type(message.content) == "string" then
+					msg.content = message.content
+				elseif type(message.content) == "table" then
+					for _, line in ipairs(message.content) do
+						if line.text then
+							msg.content = line.text
+							break
+						end
+					end
+				elseif message.parts then
+					if message.parts.text then
+						msg.content = message.parts.text
+					elseif message.parts[1].text then
+						msg.content = message.parts[1].text
+					end
+				end
+				if not msg.content then
+					vim.api.nvim_err_writeln("Could not find content in message: " .. vim.inspect(message))
+					break
+				end
+				-- remove @attach(.*) with empty string
+				msg.content = msg.content:gsub("@attach(.*)", "")
+				-- remove @command(cmd_string) commands
+				msg.content = msg.content:gsub(cmd_pattern, "")
+				if msg.content and #msg.content > 2000 then
+					msg.content = gp.helpers.truncate_string_at_newline(msg.content, 2000)
+				elseif msg.parts and #msg.parts[1].text > 2000 then
+					msg.parts[1].text = gp.helpers.truncate_string_at_newline(msg.parts[1].text, 2000)
+				end
+				table.insert(topic_messages, msg)
+				break
+			end
+		end
+		-- prepare invisible buffer for the model to write to
+		local topic_buf = vim.api.nvim_create_buf(false, true)
+		local topic_handler = gp.dispatcher.create_handler(topic_buf, nil, 0, false, "", false)
+		local topic_gen_agent = gp.get_chat_agent(gp.config.chat_topic_gen_agent)
+
+		-- call the model to generate the topic
+		gp.dispatcher.query(
+			nil,
+			topic_gen_agent.provider,
+			gp.dispatcher.prepare_payload(topic_messages, topic_gen_agent.model, topic_gen_agent.provider),
+			topic_handler,
+			vim.schedule_wrap(function()
+				-- get topic from invisible buffer
+				local topic = vim.api.nvim_buf_get_lines(topic_buf, 0, -1, false)[1]
+				-- close invisible buffer
+				vim.api.nvim_buf_delete(topic_buf, { force = true })
+				-- strip whitespace from ends of topic
+				topic = topic:gsub("^%s*(.-)%s*$", "%1")
+				-- strip dot from end of topic
+				topic = topic:gsub("%.$", "")
+
+				-- if topic is empty do not replace it
+				if topic == "" then
+					return
+				end
+
+				-- replace topic in current buffer
+				gp.helpers.undojoin(buf)
+				vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
+			end),
+			function()
+				pcall(function()
+					vim.cmd("silent write")
+				end)
+			end
+		)
+	else
+		pcall(function()
+			vim.cmd("silent write")
+		end)
+	end
+	if not gp.config.chat_free_cursor then
+		local line = vim.api.nvim_buf_line_count(buf)
+		gp.helpers.cursor_to_line(line, buf, win)
+	end
+	vim.cmd("doautocmd User GpDone")
+end
+
+local function run_tool_chat(gp, ctx)
+	local active_messages = ctx.messages
+	local tool_state = ctx.tool_state
+	local schemas = gp.tools.openai_schemas(tool_state)
+	local max_rounds = tool_state.max_rounds or 10
+	local round = 0
+
+	local function finish_with_limit()
+		append_text(
+			gp,
+			ctx.buf,
+			table.concat({
+				"",
+				"📎 tool_result: tool_loop",
+				"```text",
+				"ERROR: maximum tool rounds reached: " .. tostring(max_rounds),
+				"```",
+			}, "\n")
+		)
+		finish_chat(gp, ctx.buf, ctx.win, ctx.headers, ctx.messages, ctx.cmd_pattern)
+	end
+
+	local function query_round()
+		if round >= max_rounds then
+			finish_with_limit()
+			return
+		end
+		round = round + 1
+		local payload = gp.dispatcher.prepare_payload(active_messages, ctx.model, ctx.provider, {
+			stream = false,
+			tools = schemas,
+			tool_choice = "auto",
+		})
+		gp.dispatcher.query(
+			ctx.buf,
+			ctx.provider,
+			payload,
+			function() end,
+			vim.schedule_wrap(function(qid)
+				local qt = gp.tasker.get_query(qid)
+				if not qt then
+					return
+				end
+				local tool_calls = qt.tool_calls or {}
+				if #tool_calls == 0 then
+					if qt.response and qt.response ~= "" then
+						local final_handler = gp.dispatcher.create_handler(
+							ctx.buf,
+							ctx.win,
+							gp.helpers.last_content_line(ctx.buf),
+							true,
+							"",
+							not gp.config.chat_free_cursor
+						)
+						final_handler(qid, qt.response)
+					end
+					finish_chat(gp, ctx.buf, ctx.win, ctx.headers, ctx.messages, ctx.cmd_pattern)
+					return
+				end
+
+				local assistant_message = {
+					role = "assistant",
+					content = qt.response_message and qt.response_message.content or "",
+					tool_calls = tool_calls,
+				}
+				table.insert(active_messages, assistant_message)
+
+				for _, call in ipairs(tool_calls) do
+					local name = call["function"] and call["function"].name or "unknown"
+					append_text(gp, ctx.buf, gp.tools.format_call_block(name, tool_call_args(call)))
+				end
+
+				gp.tools.execute_calls(tool_calls, ctx.agent, {
+					buf = ctx.buf,
+					provider = ctx.provider,
+				}, function(results)
+					for _, result in ipairs(results) do
+						append_text(gp, ctx.buf, gp.tools.format_result_block(result.name, result.content))
+						table.insert(active_messages, {
+							role = "tool",
+							tool_call_id = result.id,
+							content = result.content,
+						})
+					end
+					vim.defer_fn(query_round, 10)
+				end)
+			end),
+			nil,
+			false,
+			gp.config.chat_show_thinking
+		)
+	end
+
+	query_round()
+end
+
 M.setup = function(gp)
 	gp.chat_respond = function(params)
 		local buf = vim.api.nvim_get_current_buf()
@@ -187,122 +409,42 @@ M.setup = function(gp)
 			end
 		end
 
+		local provider = headers.provider or agent.provider
+		local model = headers.model or agent.model
+		local tool_state, tool_reason
+		if gp.tools then
+			tool_state, tool_reason = gp.tools.resolve(agent, provider)
+		end
+
+		if tool_state then
+			run_tool_chat(gp, {
+				buf = buf,
+				win = win,
+				headers = headers,
+				messages = messages,
+				cmd_pattern = cmd_pattern,
+				agent = agent,
+				provider = provider,
+				model = model,
+				tool_state = tool_state,
+			})
+			return
+		elseif agent.tools and tool_reason and tool_reason ~= "tools disabled" then
+			gp.logger.warning(tool_reason)
+		end
+
 		-- call the model and write response
 		gp.dispatcher.query(
 			buf,
-			headers.provider or agent.provider,
-			gp.dispatcher.prepare_payload(messages, headers.model or agent.model, headers.provider or agent.provider),
+			provider,
+			gp.dispatcher.prepare_payload(messages, model, provider),
 			gp.dispatcher.create_handler(buf, win, gp.helpers.last_content_line(buf), true, "", not gp.config.chat_free_cursor),
 			vim.schedule_wrap(function(qid)
 				local qt = gp.tasker.get_query(qid)
 				if not qt then
 					return
 				end
-
-				-- write user prompt
-				last_content_line = gp.helpers.last_content_line(buf)
-				gp.helpers.undojoin(buf)
-				vim.api.nvim_buf_set_lines(
-					buf,
-					last_content_line,
-					last_content_line,
-					false,
-					{ "", gp.config.chat_user_prefix, "" }
-				)
-
-				-- delete whitespace lines at the end of the file
-				last_content_line = gp.helpers.last_content_line(buf)
-				gp.helpers.undojoin(buf)
-				vim.api.nvim_buf_set_lines(buf, last_content_line, -1, false, {})
-				-- insert a new line at the end of the file
-				gp.helpers.undojoin(buf)
-				vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "" })
-
-				-- if topic is ?, then generate it
-				if headers.topic == "?" then
-					local topic_messages = { { role = "system", content = gp.config.chat_topic_gen_prompt } }
-					for _, message in ipairs(messages) do
-						if message.role ~= "system" then
-							local msg = { role = message.role }
-							if type(message.content) == "string" then
-								msg.content = message.content
-							elseif type(message.content) == "table" then
-								for _, line in ipairs(message.content) do
-									if line.text then
-										msg.content = line.text
-										break
-									end
-								end
-							elseif message.parts then
-								if message.parts.text then
-									msg.content = message.parts.text
-								elseif message.parts[1].text then
-									msg.content = message.parts[1].text
-								end
-							end
-							if not msg.content then
-								vim.api.nvim_err_writeln("Could not find content in message: " .. vim.inspect(message))
-								break
-							end
-							-- remove @attach(.*) with empty string
-							msg.content = msg.content:gsub("@attach(.*)", "")
-							-- remove @command(cmd_string) commands
-							msg.content = msg.content:gsub(cmd_pattern, "")
-							if msg.content and #msg.content > 2000 then
-								msg.content = gp.helpers.truncate_string_at_newline(msg.content, 2000)
-							elseif msg.parts and #msg.parts[1].text > 2000 then
-								msg.parts[1].text = gp.helpers.truncate_string_at_newline(msg.parts[1].text, 2000)
-							end
-							table.insert(topic_messages, msg)
-							break
-						end
-					end
-					-- prepare invisible buffer for the model to write to
-					local topic_buf = vim.api.nvim_create_buf(false, true)
-					local topic_handler = gp.dispatcher.create_handler(topic_buf, nil, 0, false, "", false)
-					local topic_gen_agent = gp.get_chat_agent(gp.config.chat_topic_gen_agent)
-
-					-- call the model to generate the topic
-					gp.dispatcher.query(
-						nil,
-						topic_gen_agent.provider,
-						gp.dispatcher.prepare_payload(topic_messages, topic_gen_agent.model, topic_gen_agent.provider),
-						topic_handler,
-						vim.schedule_wrap(function()
-							-- get topic from invisible buffer
-							local topic = vim.api.nvim_buf_get_lines(topic_buf, 0, -1, false)[1]
-							-- close invisible buffer
-							vim.api.nvim_buf_delete(topic_buf, { force = true })
-							-- strip whitespace from ends of topic
-							topic = topic:gsub("^%s*(.-)%s*$", "%1")
-							-- strip dot from end of topic
-							topic = topic:gsub("%.$", "")
-
-							-- if topic is empty do not replace it
-							if topic == "" then
-								return
-							end
-
-							-- replace topic in current buffer
-							gp.helpers.undojoin(buf)
-							vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "# topic: " .. topic })
-						end),
-						function()
-							pcall(function()
-								vim.cmd("silent write")
-							end)
-						end
-					)
-				else
-					pcall(function()
-						vim.cmd("silent write")
-					end)
-				end
-				if not gp.config.chat_free_cursor then
-					local line = vim.api.nvim_buf_line_count(buf)
-					gp.helpers.cursor_to_line(line, buf, win)
-				end
-				vim.cmd("doautocmd User GpDone")
+				finish_chat(gp, buf, win, headers, messages, cmd_pattern)
 			end),
 			nil,
 			agent.stream ~= nil and agent.stream or gp.config.chat_stream_response,

@@ -130,6 +130,50 @@ Fixes:
 - preserve the topic and file headers from the configured chat template;
 - if `---` is missing, fix that separately; it produces a parsing error rather than this warning.
 
+## Native tools are not available
+
+Symptoms:
+
+- `:GpTools` shows no enabled tools for the current chat agent;
+- a model never emits tool calls;
+- logs mention that native tools are only supported for OpenAI-compatible providers.
+
+Fixes:
+
+- ensure the current chat agent has `tools = { enabled = { "read", "write", "edit", "run" } }`;
+- switch to that agent with `:GpAgent AgentName` in a chat buffer;
+- use an OpenAI-compatible provider for MVP tool calling;
+- remember that native tools are chat-only and do not run for `GpRewrite`, `GpAppend`, or other prompt commands.
+
+## Tool path is rejected
+
+Symptoms:
+
+- tool result contains `ERROR: path escapes workspace root`;
+- `read`, `write`, or `edit` cannot access a path outside the current workspace.
+
+Fixes:
+
+- use paths relative to the workspace root;
+- check Neovim's current working directory with `:pwd`;
+- set `tools.workspace_root` in the agent config if the inferred root is wrong;
+- set `tools.workspace_only = false` only for trusted/local models.
+
+## Tool command is denied or times out
+
+Symptoms:
+
+- `run` returns `ERROR: tool execution denied by user`;
+- `run` returns `timed_out: true`;
+- `run` stderr says the command failed to start.
+
+Fixes:
+
+- choose `Run once` in the confirmation dialog for non-allowlisted commands;
+- add trusted commands to `tools.run.allowed_commands` for that agent;
+- pass command arguments as `args = { ... }`, not through `bash -c`;
+- increase `tools.run.timeout_ms` if a trusted command needs more time.
+
 ## `.gp.md` context is not used
 
 Symptoms:

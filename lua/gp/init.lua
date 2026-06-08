@@ -35,6 +35,7 @@ require("gp.chat").setup(M)
 require("gp.agents").setup(M)
 require("gp.context").setup(M)
 require("gp.chat.respond").setup(M)
+require("gp.tools").setup(M)
 
 -- setup function
 M._setup_called = false

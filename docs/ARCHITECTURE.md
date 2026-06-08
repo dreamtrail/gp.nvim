@@ -14,6 +14,8 @@ This repository is a maintained fork of `gp.nvim`, continued after upstream deve
 │   ├── chat.lua           # Chat buffer lifecycle and chat file commands
 │   ├── chat/respond.lua   # Chat parsing and response orchestration
 │   ├── context.lua        # Repository `.gp.md` context command/helpers
+│   ├── tools.lua          # Native chat tool registry and `GpTools` command
+│   ├── tools/             # Built-in native tools and safety helpers
 │   ├── config.lua         # Default user configuration, providers, agents, hooks
 │   ├── defaults.lua       # Default system prompts and chat templates
 │   ├── dispatcher.lua     # Dispatcher facade, provider setup, curl query path
@@ -57,12 +59,24 @@ Important responsibilities:
 The chat lifecycle is split out of the facade:
 
 - `lua/gp/chat.lua` owns chat detection, chat buffer preparation, chat creation/toggle/paste/delete commands, and chat buffer autocommands.
-- `lua/gp/chat/respond.lua` parses markdown chat transcripts, builds messages, expands human-authored `@command(...)` prompt snippets, dispatches provider requests, and appends follow-up prompts/topic updates.
+- `lua/gp/chat/respond.lua` parses markdown chat transcripts, builds messages, expands human-authored `@command(...)` prompt snippets, dispatches provider requests, runs OpenAI-compatible native tool loops for tool-enabled chat agents, and appends follow-up prompts/topic updates.
 - `lua/gp/context.lua` owns `.gp.md` repository instructions and the `GpContext` command.
 - `lua/gp/ui/toggle.lua` owns shared popup/chat/context toggle state.
 - `lua/gp/ui/buffer.lua` owns buffer target resolution and opening files in current windows, popups, splits, vertical splits, and tabs.
 
 These modules attach functions back onto the main `gp` table to preserve compatibility for hooks and user configuration.
+
+### Native tools
+
+`lua/gp/tools.lua` owns the built-in native tool registry, `:GpTools`, OpenAI-compatible tool schemas, confirmation policy, and sequential tool-call execution. Tools are opt-in per chat agent via `agent.tools.enabled` and are disabled for default agents.
+
+Built-in tool helpers live under `lua/gp/tools/`:
+
+- `builtin.lua`: `read`, `write`, `edit`, and `run` tool specs and handlers;
+- `path.lua`: workspace root resolution and path containment checks;
+- `process.lua`: bounded libuv process execution for the `run` tool.
+
+Native tools are chat-only in the MVP. Tool call/result markdown blocks are user-visible/auditable but not a structured replay contract.
 
 ### `lua/gp/dispatcher.lua`
 
@@ -96,9 +110,10 @@ A normal session follows this path:
 6. `init.lua` registers hook commands and built-in commands such as `GpChatNew`, `GpChatRespond`, `GpRewrite`, and `GpPopup`.
 7. A user command builds chat or prompt messages from the current buffer, range, selection, arguments, and optional `.gp.md` repository instructions.
 8. `dispatcher.prepare_payload()` converts those messages into the target provider's request format.
-9. `dispatcher.query()` starts a `curl` process through `tasker.run()`.
-10. Streaming or buffered response data is parsed by dispatcher handlers and written back into Neovim buffers.
-11. Completion callbacks run cleanup, selection adjustment, and the `User GpDone` autocommand where applicable.
+9. For tool-enabled chat agents using OpenAI-compatible providers, chat response orchestration forces non-streaming requests, injects native tool schemas, executes requested built-in tools, appends visible tool call/result blocks, and sends structured `role = "tool"` messages for follow-up rounds.
+10. `dispatcher.query()` starts a `curl` process through `tasker.run()`.
+11. Streaming or buffered response data is parsed by dispatcher handlers and written back into Neovim buffers.
+12. Completion callbacks run cleanup, selection adjustment, and the `User GpDone` autocommand where applicable.
 
 ## Data and state
 

@@ -105,11 +105,41 @@ For behavior-preserving architecture refactors, check stable facade behavior:
 - compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.get_chat_agent`, `dispatcher.prepare_payload`, and `dispatcher.create_handler` still exist;
 - representative payload tests still pass, including current in-place message mutation behavior for Anthropic/Google/OpenAI reasoning payloads.
 
+## Native tool validation
+
+For native tool changes, run the headless harness and add provider-free coverage where possible:
+
+```sh
+./scripts/test.sh
+```
+
+The committed tests should cover:
+
+- exact `Gp*` command snapshots, including `GpTools`;
+- default agents remaining tool-disabled;
+- OpenAI-compatible payloads receiving native tool schemas only when tools are enabled;
+- Anthropic/Google payloads not receiving OpenAI tool schemas;
+- non-stream OpenAI response parsing for final content, one tool call, and multiple tool calls;
+- chat tool-loop orchestration with a mocked dispatcher;
+- visible tool call/result blocks in chat buffers;
+- built-in `read`, `write`, `edit`, and `run` behavior in temporary workspaces;
+- confirmation allow/deny paths by stubbing `vim.ui.select`.
+
+Manual validation for trusted local setups:
+
+1. Configure a tool-enabled chat agent with `tools.enabled = { "read", "write", "edit", "run" }`.
+2. Use `:GpTools` to inspect enabled tools.
+3. In a disposable repository, ask the model to read a small file, edit a copy, and run an allowlisted harmless command.
+4. Verify tool call/result blocks are visible in the chat transcript.
+5. Use `:GpStop` while a long `run` command is active to verify cancellation where supported.
+
+Avoid live remote-provider tests with sensitive files unless you explicitly intend to send those file contents to the provider.
+
 ## Provider-specific validation
 
 Provider changes should be validated with the provider they affect:
 
-- OpenAI-compatible providers: check payload shape, streaming behavior, and auth header handling.
+- OpenAI-compatible providers: check payload shape, streaming/non-streaming behavior, native tool schemas/tool calls when enabled, and auth header handling.
 - Anthropic: check `system`, `messages`, optional `thinking`, and attachment handling.
 - Google/Vertex: check `contents`, `parts`, `system_instruction`, search/thinking options, and bearer refresh if applicable.
 - Copilot: check secret extraction and bearer refresh paths without logging tokens.

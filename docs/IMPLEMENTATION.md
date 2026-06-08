@@ -54,12 +54,42 @@ Chats are regular markdown files in the configured chat directory. Chat template
 Important chat behavior is split across smaller modules:
 
 - `lua/gp/chat.lua`: `new_chat()` creates the markdown file and opens it in the requested target; `prep_chat()` sets markdown options and buffer-local shortcuts; `ChatDelete` deletes the active chat after optional confirmation.
-- `lua/gp/chat/respond.lua`: `chat_respond()` parses markdown messages into `{ role, content }` records and orchestrates provider calls/follow-up prompts.
+- `lua/gp/chat/respond.lua`: `chat_respond()` parses markdown messages into `{ role, content }` records, expands `@command(...)`, orchestrates normal provider calls, and runs the native tool loop for tool-enabled OpenAI-compatible chat agents.
 - `lua/gp/init.lua`: `ChatFinder` searches existing chat files and previews matches.
 
 The extracted modules attach these functions to the same `M` table used by `require("gp")`, preserving existing public aliases.
 
 Chat parsing depends on configured user and assistant prefixes. Header fields may override the agent model/provider/role for that chat.
+
+## Native chat tools
+
+Native tools are opt-in per chat agent through `agent.tools.enabled`. Default agents do not enable tools. The MVP is chat-only and uses OpenAI-compatible `tools` / `tool_calls` / `role = "tool"` message shapes; Anthropic and Google native tool formats are intentionally not implemented yet.
+
+Main modules:
+
+- `lua/gp/tools.lua`: registry, schema export, `:GpTools`, confirmation policy, and sequential execution of multiple tool calls.
+- `lua/gp/tools/builtin.lua`: built-in `read`, `write`, `edit`, and `run` implementations.
+- `lua/gp/tools/path.lua`: workspace root resolution and path containment checks.
+- `lua/gp/tools/process.lua`: bounded libuv process execution for `run`.
+
+A tool-enabled chat response follows this loop:
+
+1. `chat_respond()` parses the chat as usual and writes the assistant prefix.
+2. If the current chat agent has `tools.enabled` and the provider is OpenAI-compatible, it builds a non-streaming payload with tool schemas.
+3. Dispatcher parses non-streaming responses into `response_message`, `tool_calls`, and `finish_reason` fields on the tasker query record.
+4. If tool calls exist, `chat_respond()` records visible tool-call blocks, executes each call in order, records visible tool-result blocks, appends structured `role = "tool"` messages internally, and sends the next non-streaming request.
+5. If no tool calls exist, the final assistant response is written and normal chat finalization runs.
+
+Safety defaults:
+
+- `read` is read-only and can run without confirmation.
+- `write`, `edit`, and non-allowlisted `run` calls require `vim.ui.select()` confirmation by default.
+- `run.allowed_commands` bypasses confirmation for trusted commands.
+- `workspace_only = true` is the default; trusted/local agents may set it to `false`.
+- `write` and `edit` use atomic temporary-file writes plus rename when possible.
+- `run` does not invoke a shell; it uses `cmd` plus `args`, output caps, and a timeout.
+
+Tool call/result blocks are deliberately human-readable transcript text. The MVP does not parse historical blocks back into structured tool messages.
 
 ## Prompt targets
 
@@ -82,7 +112,7 @@ The target controls where model output is written:
 Key paths:
 
 - `D.setup(opts)` merges configured providers with defaults and registers provider secrets with `vault`;
-- `D.prepare_payload(messages, model, provider)` is a compatibility alias to `lua/gp/dispatcher/payload.lua` and converts internal messages into the target provider format;
+- `D.prepare_payload(messages, model, provider, opts)` is a compatibility alias to `lua/gp/dispatcher/payload.lua` and converts internal messages into the target provider format; `opts` can inject OpenAI-compatible tool schemas and force non-streaming requests;
 - `D.query(...)` resolves provider secrets and delegates to the internal `query` function;
 - `D.create_handler(...)` is a compatibility alias to `lua/gp/dispatcher/handler.lua` and creates buffer writers for streaming and buffered responses.
 
@@ -96,7 +126,7 @@ Dispatcher helper modules:
 
 Provider-specific behavior includes:
 
-- OpenAI-compatible payloads with `messages`;
+- OpenAI-compatible payloads with `messages` and optional native `tools` / `tool_choice`;
 - Anthropic payloads with top-level `system`, `messages`, and optional `thinking`;
 - Google/Vertex-style payloads with `contents`, `parts`, `system_instruction`, and safety settings;
 - OpenAI reasoning models using `developer` instead of `system` for the leading role;

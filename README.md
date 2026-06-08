@@ -271,6 +271,51 @@ Request a new GPT response for the current chat. Usin`:GpChatRespond N` request 
 
 Delete the current chat. By default requires confirmation before delete, which can be disabled in config using `chat_confirm_delete = false,`.
 
+## Native chat tools
+
+Tool-enabled chat agents can use OpenAI-compatible native function/tool calling. Tools are disabled unless an agent opts in with `tools.enabled`.
+
+Built-in tools:
+
+- `read` — read bounded text files;
+- `write` — write text files, creating parent directories;
+- `edit` — apply exact text replacements atomically;
+- `run` — run a command with arguments, without invoking a shell.
+
+Example tool-enabled agent:
+
+```lua
+{
+    provider = "openai",
+    name = "ChatGPT4oTools",
+    chat = true,
+    command = false,
+    model = { model = "gpt-4o", temperature = 1.0 },
+    system_prompt = require("gp.defaults").chat_system_prompt,
+    tools = {
+        enabled = { "read", "write", "edit", "run" },
+        workspace_only = true,
+        -- read runs automatically by default
+        write = { confirm = true },
+        edit = { confirm = true },
+        run = {
+            -- allowed commands bypass confirmation; all others ask first
+            allowed_commands = { "make", "npm", "pytest" },
+        },
+    },
+}
+```
+
+Safety notes:
+
+- Tools work in chat sessions only for the MVP.
+- Tools currently use OpenAI-compatible tool-calling payloads; Anthropic/Google native tool formats are not implemented yet.
+- Tool-enabled chats use non-streaming requests while tool calls are active.
+- `workspace_only = true` is the default; set it to `false` only for trusted/local models.
+- `write`, `edit`, and non-allowlisted `run` calls ask for confirmation by default.
+- Tool call/result blocks are visible in chat files for auditability, but old blocks are not replayed as structured tool messages.
+- `@command(...)` remains human prompt preprocessing and is separate from native tools.
+
 ## Text/Code commands
 
 #### `:GpRewrite`<!-- {doc=:GpRewrite}  -->
@@ -402,6 +447,10 @@ Choose a new "image agent" based on its name. In the context of images, agent is
 #### `:GpStop` <!-- {doc=:GpStop}  -->
 
 Stops all currently running responses and jobs.
+
+#### `:GpTools` <!-- {doc=:GpTools}  -->
+
+Opens a scratch buffer listing built-in native tools, their schemas, and which tools are enabled for the current chat agent.
 
 #### `:GpInspectPlugin` <!-- {doc=:GpInspectPlugin}  -->
 
