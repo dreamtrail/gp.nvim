@@ -86,6 +86,18 @@ local function with_cwd(dir, fn)
 	end
 end
 
+local function assert_single_blank_before_prompt(buf, response_line, user_prefix, label)
+	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+	for i, line in ipairs(lines) do
+		if line == response_line then
+			assert_eq(lines[i + 1], "", label .. " has one blank line after response")
+			assert_eq(lines[i + 2], user_prefix, label .. " prompt follows exactly one blank line")
+			return
+		end
+	end
+	error(label .. ": response line not found: " .. response_line)
+end
+
 vim.opt.runtimepath:append(vim.fn.getcwd())
 
 local workspace = vim.fn.tempname()
@@ -829,6 +841,110 @@ test("ChatRespond preserves non-tool path without live provider", function()
 	vim.fn.delete(chat_file)
 end)
 
+test("ChatRespond non-tool final response without trailing newline separates next prompt", function()
+	gp.refresh_state({ chat_agent = "ChatGPT4o" })
+	local calls = 0
+	local query_stub = function(buf, provider, payload, handler, on_exit, _, stream)
+		calls = calls + 1
+		assert_eq(stream, false, "non-tool newline test uses non-streaming chat")
+		local qid = "non-tool-newline-qid"
+		gp.tasker.set_query(qid, {
+			timestamp = os.time(),
+			buf = buf,
+			provider = provider,
+			payload = payload,
+			response = "final answer",
+			stream = stream,
+			first_line = -1,
+			last_line = -1,
+		})
+		handler(qid, "final answer")
+		on_exit(qid)
+	end
+
+	local chat_file = vim.fn.tempname() .. ".md"
+	local buf = vim.api.nvim_create_buf(true, false)
+	vim.api.nvim_set_current_buf(buf)
+	vim.api.nvim_buf_set_name(buf, chat_file)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+		"# topic: Non Tool Newline Test",
+		"- file: sample.lua",
+		"- provider: openai",
+		"- model: gpt-custom",
+		"---",
+		"",
+		gp.config.chat_user_prefix .. "answer without newline",
+	})
+	vim.api.nvim_set_option_value("modified", false, { buf = buf })
+
+	with_stub(gp.dispatcher, "query", query_stub, function()
+		local ok, err = pcall(function()
+			gp.cmd.ChatRespond({ args = "", range = 0, line1 = 1, line2 = 1 })
+		end)
+		assert_true(ok, "non-tool newline ChatRespond did not error: " .. tostring(err))
+	end)
+	vim.wait(1000, function()
+		local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+		return calls == 1 and text:match("final answer") and text:match(gp.config.chat_user_prefix)
+	end)
+	assert_eq(calls, 1, "non-tool final response performs one provider request")
+	assert_single_blank_before_prompt(buf, "final answer", gp.config.chat_user_prefix, "non-tool response without trailing newline")
+	vim.api.nvim_buf_delete(buf, { force = true })
+	vim.fn.delete(chat_file)
+end)
+
+test("ChatRespond non-tool final response with trailing newline is not doubled", function()
+	gp.refresh_state({ chat_agent = "ChatGPT4o" })
+	local calls = 0
+	local query_stub = function(buf, provider, payload, handler, on_exit, _, stream)
+		calls = calls + 1
+		assert_eq(stream, false, "non-tool trailing newline test uses non-streaming chat")
+		local qid = "non-tool-trailing-newline-qid"
+		gp.tasker.set_query(qid, {
+			timestamp = os.time(),
+			buf = buf,
+			provider = provider,
+			payload = payload,
+			response = "final answer\n",
+			stream = stream,
+			first_line = -1,
+			last_line = -1,
+		})
+		handler(qid, "final answer\n")
+		on_exit(qid)
+	end
+
+	local chat_file = vim.fn.tempname() .. ".md"
+	local buf = vim.api.nvim_create_buf(true, false)
+	vim.api.nvim_set_current_buf(buf)
+	vim.api.nvim_buf_set_name(buf, chat_file)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+		"# topic: Non Tool Existing Newline Test",
+		"- file: sample.lua",
+		"- provider: openai",
+		"- model: gpt-custom",
+		"---",
+		"",
+		gp.config.chat_user_prefix .. "answer with newline",
+	})
+	vim.api.nvim_set_option_value("modified", false, { buf = buf })
+
+	with_stub(gp.dispatcher, "query", query_stub, function()
+		local ok, err = pcall(function()
+			gp.cmd.ChatRespond({ args = "", range = 0, line1 = 1, line2 = 1 })
+		end)
+		assert_true(ok, "non-tool trailing newline ChatRespond did not error: " .. tostring(err))
+	end)
+	vim.wait(1000, function()
+		local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+		return calls == 1 and text:match("final answer") and text:match(gp.config.chat_user_prefix)
+	end)
+	assert_eq(calls, 1, "non-tool trailing newline response performs one provider request")
+	assert_single_blank_before_prompt(buf, "final answer", gp.config.chat_user_prefix, "non-tool response with trailing newline")
+	vim.api.nvim_buf_delete(buf, { force = true })
+	vim.fn.delete(chat_file)
+end)
+
 test("ChatRespond tool loop records tool blocks and finalizes", function()
 	gp.refresh_state({ chat_agent = "ToolAgent" })
 	vim.fn.writefile({ "tool content" }, workspace .. "/tool.txt")
@@ -919,6 +1035,67 @@ test("ChatRespond tool loop records tool blocks and finalizes", function()
 	assert_true(text:match("invalid JSON arguments"), "invalid JSON tool args are recorded visibly")
 	assert_true(text:match("final answer"), "final response written")
 	assert_true(text:match(gp.config.chat_user_prefix), "chat finalized with user prompt")
+	assert_single_blank_before_prompt(buf, "final answer", gp.config.chat_user_prefix, "tool response without trailing newline")
+	vim.api.nvim_buf_delete(buf, { force = true })
+	vim.fn.delete(chat_file)
+end)
+
+test("ChatRespond tool final response with trailing newline is not doubled", function()
+	gp.refresh_state({ chat_agent = "ToolAgent" })
+	local calls = 0
+	local handler_stub = function(buf)
+		return function(_, content)
+			local line = gp.helpers.last_content_line(buf)
+			vim.api.nvim_buf_set_lines(buf, line, line, false, vim.split(content, "\n", { plain = true }))
+		end
+	end
+	local query_stub = function(buf, provider, payload, _, on_exit, _, stream)
+		calls = calls + 1
+		assert_eq(payload.stream, false, "tool final response forces payload stream false")
+		assert_eq(stream, false, "tool final response disables UI streaming")
+		local qid = "tool-newline-qid"
+		gp.tasker.set_query(qid, {
+			timestamp = os.time(),
+			buf = buf,
+			provider = provider,
+			payload = payload,
+			response = "final answer\n",
+			tool_calls = {},
+			response_message = { role = "assistant", content = "final answer\n" },
+		})
+		on_exit(qid)
+	end
+
+	local chat_file = vim.fn.tempname() .. ".md"
+	local buf = vim.api.nvim_create_buf(true, false)
+	vim.api.nvim_set_current_buf(buf)
+	vim.api.nvim_buf_set_name(buf, chat_file)
+	vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+		"# topic: Tool Newline Test",
+		"- file: sample.lua",
+		"- provider: openai",
+		"- model: gpt-tools",
+		"---",
+		"",
+		gp.config.chat_user_prefix .. "answer with newline",
+	})
+	vim.api.nvim_set_option_value("modified", false, { buf = buf })
+
+	with_stubs({
+		{ gp.dispatcher, "create_handler", handler_stub },
+		{ gp.dispatcher, "query", query_stub },
+	}, function()
+		local ok, err = pcall(function()
+			gp.cmd.ChatRespond({ args = "", range = 0, line1 = 1, line2 = 1 })
+		end)
+		assert_true(ok, "tool newline ChatRespond did not error: " .. tostring(err))
+	end)
+	vim.wait(1000, function()
+		local text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+		return calls == 1 and text:match("final answer") and text:match(gp.config.chat_user_prefix)
+	end)
+	assert_eq(calls, 1, "tool final response without tool calls performs one provider request")
+	assert_single_blank_before_prompt(buf, "final answer", gp.config.chat_user_prefix, "tool response with trailing newline")
 	vim.api.nvim_buf_delete(buf, { force = true })
 	vim.fn.delete(chat_file)
 end)

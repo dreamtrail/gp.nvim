@@ -19,6 +19,13 @@ local function append_text(gp, buf, text)
 	end)
 end
 
+local function ensure_trailing_newline(text)
+	if type(text) == "string" and text ~= "" and not text:match("\n$") then
+		return text .. "\n"
+	end
+	return text
+end
+
 local function tool_call_args(call)
 	local raw = call and call["function"] and call["function"].arguments or "{}"
 	if raw == "" then
@@ -186,7 +193,7 @@ local function run_tool_chat(gp, ctx)
 							"",
 							not gp.config.chat_free_cursor
 						)
-						final_handler(qid, qt.response)
+						final_handler(qid, ensure_trailing_newline(qt.response))
 					end
 					finish_chat(gp, ctx.buf, ctx.win, ctx.headers, ctx.messages, ctx.cmd_pattern)
 					return
@@ -434,11 +441,19 @@ M.setup = function(gp)
 		end
 
 		-- call the model and write response
+		local stream = agent.stream ~= nil and agent.stream or gp.config.chat_stream_response
+		local handler = gp.dispatcher.create_handler(buf, win, gp.helpers.last_content_line(buf), true, "", not gp.config.chat_free_cursor)
+		if not stream then
+			local base_handler = handler
+			handler = function(qid, chunk)
+				base_handler(qid, ensure_trailing_newline(chunk))
+			end
+		end
 		gp.dispatcher.query(
 			buf,
 			provider,
 			gp.dispatcher.prepare_payload(messages, model, provider),
-			gp.dispatcher.create_handler(buf, win, gp.helpers.last_content_line(buf), true, "", not gp.config.chat_free_cursor),
+			handler,
 			vim.schedule_wrap(function(qid)
 				local qt = gp.tasker.get_query(qid)
 				if not qt then
@@ -447,7 +462,7 @@ M.setup = function(gp)
 				finish_chat(gp, buf, win, headers, messages, cmd_pattern)
 			end),
 			nil,
-			agent.stream ~= nil and agent.stream or gp.config.chat_stream_response,
+			stream,
 			gp.config.chat_show_thinking
 		)
 	end
