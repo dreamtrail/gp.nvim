@@ -1,0 +1,30 @@
+# Secrets and environment files
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local virtual environments and dependency caches
+.venv/
+venv/
+node_modules/
+
+# Runtime caches and temporary files
+.cache/
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+
+# Neovim/headless test artifacts
+.nvimlog
+shada
+*.shada
+
+# Build/coverage outputs
+coverage/
+dist/
+build/
