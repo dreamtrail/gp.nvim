@@ -1,6 +1,6 @@
 # Testing and Validation
 
-This repository includes a minimal headless Neovim characterization test harness in `tests/run.lua`, invoked by `scripts/test.sh`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, and representative dispatcher payload behavior.
+This repository includes a minimal headless Neovim characterization test harness invoked by `scripts/test.sh`. `tests/run.lua` is the runner, `tests/support.lua` provides shared fixtures/helpers, and grouped specs live under `tests/spec/`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, and representative dispatcher payload behavior.
 
 It is not a comprehensive unit/integration test suite. Use the checks below to validate changes according to their scope, and add focused characterization coverage when refactoring core behavior.
 
@@ -39,7 +39,7 @@ Run the committed headless test harness for Lua source changes:
 ./scripts/test.sh
 ```
 
-The script uses temporary XDG directories and a dummy API key, then runs `tests/run.lua` in a clean headless Neovim session.
+The script uses temporary XDG directories and a dummy API key, then runs `tests/run.lua` in a clean headless Neovim session. The runner loads grouped spec files from `tests/spec/`.
 
 ## Lua load/syntax smoke checks
 
@@ -102,7 +102,7 @@ For behavior-preserving architecture refactors, check stable facade behavior:
 
 - `require("gp")` and `require("gp.dispatcher")` still load;
 - existing commands are still registered after setup;
-- compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.get_chat_agent`, `dispatcher.prepare_payload`, and `dispatcher.create_handler` still exist;
+- compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.cmd.ChatFinder`, `gp.get_chat_agent`, `dispatcher.prepare_payload`, and `dispatcher.create_handler` still exist;
 - representative payload tests still pass, including current in-place message mutation behavior for Anthropic/Google/OpenAI reasoning payloads.
 
 ## Native tool validation

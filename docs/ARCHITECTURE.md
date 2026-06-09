@@ -9,9 +9,12 @@ This repository is a maintained fork of `gp.nvim`, continued after upstream deve
 ├── README.md              # User-facing documentation
 ├── doc/gp.nvim.txt        # Generated vimdoc (from README via CI)
 ├── lua/gp/                # Plugin implementation
-│   ├── init.lua           # Public facade, setup, prompt commands, chat finder
+│   ├── init.lua           # Public facade and setup orchestration
+│   ├── state.lua          # Persisted agent/chat state helpers
+│   ├── prompt.lua         # Prompt targets, prompt commands, and Prompt()
 │   ├── agents.lua         # Agent selection, lookup, and command handlers
 │   ├── chat.lua           # Chat buffer lifecycle and chat file commands
+│   ├── chat/finder.lua    # Chat finder popup UI
 │   ├── chat/respond.lua   # Chat parsing and response orchestration
 │   ├── context.lua        # Repository `.gp.md` context command/helpers
 │   ├── tools.lua          # Native chat tool registry and `GpTools` command
@@ -38,7 +41,7 @@ This repository is a maintained fork of `gp.nvim`, continued after upstream deve
 
 ### `lua/gp/init.lua`
 
-`init.lua` is the public entry point returned by `require("gp")`. It remains the stable facade for setup, command registration, prompt targets, chat finder, and compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.*`, and agent getters.
+`init.lua` is the public entry point returned by `require("gp")`. It remains the stable facade for setup, command registration, and compatibility aliases such as `gp.Prompt`, `gp.Target`, `gp.cmd.*`, and agent getters. Larger facade responsibilities are attached by focused modules such as `state.lua`, `prompt.lua`, and `chat/finder.lua`.
 
 Important responsibilities:
 
@@ -46,9 +49,7 @@ Important responsibilities:
 - initialize `logger`, `vault`, `dispatcher`, `imager`, and `whisper`;
 - validate and index configured agents;
 - register commands with the configured prefix, usually `Gp`;
-- keep existing hook-facing aliases stable while delegating chat, context, UI, and agent behavior to smaller modules;
-- translate prompt command/range/selection input into provider messages;
-- call `dispatcher.query()` and write prompt responses back into buffers.
+- keep existing hook-facing aliases stable while delegating chat, context, UI, prompt, state, and agent behavior to smaller modules.
 
 ### `lua/gp/config.lua`
 
@@ -59,6 +60,7 @@ Important responsibilities:
 The chat lifecycle is split out of the facade:
 
 - `lua/gp/chat.lua` owns chat detection, chat buffer preparation, chat creation/toggle/paste/delete commands, and chat buffer autocommands.
+- `lua/gp/chat/finder.lua` owns the chat finder popup, search input, preview pane, delete shortcut, and open/toggle shortcuts.
 - `lua/gp/chat/respond.lua` parses markdown chat transcripts, builds messages, expands human-authored `@command(...)` prompt snippets, dispatches provider requests, runs OpenAI-compatible native tool loops for tool-enabled chat agents, and appends follow-up prompts/topic updates.
 - `lua/gp/context.lua` owns `.gp.md` repository instructions and the `GpContext` command.
 - `lua/gp/ui/toggle.lua` owns shared popup/chat/context toggle state.
@@ -107,7 +109,7 @@ A normal session follows this path:
 3. Secret-like fields are moved into `vault` and removed from public config tables.
 4. `dispatcher.setup()` merges provider definitions and prepares the query cache directory.
 5. `imager.setup()` and `whisper.setup()` register optional feature commands unless disabled.
-6. `init.lua` registers hook commands and built-in commands such as `GpChatNew`, `GpChatRespond`, `GpRewrite`, and `GpPopup`.
+6. `init.lua` registers hook commands and built-in commands attached by focused modules, such as `GpChatNew`, `GpChatRespond`, `GpRewrite`, and `GpPopup`.
 7. A user command builds chat or prompt messages from the current buffer, range, selection, arguments, and optional `.gp.md` repository instructions.
 8. `dispatcher.prepare_payload()` converts those messages into the target provider's request format.
 9. For tool-enabled chat agents using OpenAI-compatible providers, chat response orchestration injects native tool schemas, streams tool-use rounds by default unless `tools.stream = false`, executes requested built-in tools, appends visible tool call/result blocks, and sends structured `role = "tool"` messages for follow-up rounds.
@@ -132,3 +134,5 @@ Repository-local instructions are read from `.gp.md` at the Git root when presen
 ## Documentation generation
 
 `doc/gp.nvim.txt` is generated from `README.md` by `.github/workflows/docgen.yml` using `panvimdoc`. Do not hand-edit generated vimdoc unless there is no viable alternative; update README/source docs instead and let CI regenerate vimdoc.
+
+The README is intentionally a quick-start and overview after the size-hygiene split. Extracted markdown docs such as `docs/USAGE.md`, `docs/SHORTCUTS.md`, and `docs/EXTENDING.md` remain maintainer/user markdown references only unless the docgen workflow is explicitly expanded to include them.

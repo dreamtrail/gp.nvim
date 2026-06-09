@@ -4,7 +4,7 @@ This document explains the main implementation seams for maintainers of this for
 
 ## Setup and configuration
 
-The public entry point is `require("gp").setup(opts)` in `lua/gp/init.lua`. `init.lua` acts as a facade: extracted modules attach compatibility functions back onto the main `gp` table, so existing hooks can continue to call `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.get_chat_agent`, and related helpers.
+The public entry point is `require("gp").setup(opts)` in `lua/gp/init.lua`. `init.lua` acts as a facade: extracted modules attach compatibility functions back onto the main `gp` table, so existing hooks can continue to call `gp.Prompt`, `gp.Target`, `gp.cmd.ChatNew`, `gp.cmd.ChatFinder`, `gp.get_chat_agent`, and related helpers.
 
 Setup performs these steps:
 
@@ -24,17 +24,17 @@ Nested config tables are handled deliberately: `hooks` and `agents` are merged b
 
 ## Command registration
 
-Commands are registered with `helpers.create_user_command()` from facade-owned setup logic.
+Commands are registered with `helpers.create_user_command()` from facade-owned setup logic. Command functions may be attached by focused modules before `setup()` runs.
 
 There are three command groups:
 
-- built-in commands from `M.cmd` in `lua/gp/init.lua`;
+- built-in commands from `M.cmd`, attached by modules such as `chat.lua`, `chat/respond.lua`, `chat/finder.lua`, `context.lua`, `prompt.lua`, and `tools.lua`;
 - user hooks from `config.hooks`, registered under the same command prefix;
 - optional feature commands from `imager.lua` and `whisper.lua`.
 
 The default command prefix is `Gp`, so `ChatNew` becomes `:GpChatNew`. User hooks can override built-in command names because built-ins are skipped when a hook with the same name exists.
 
-`M.prepare_commands()` in `lua/gp/init.lua` generates the text/code prompt commands from `M.Target`, including:
+`M.prepare_commands()` in `lua/gp/prompt.lua` generates the text/code prompt commands from `M.Target`, including:
 
 - `GpRewrite`
 - `GpAppend`
@@ -55,7 +55,7 @@ Important chat behavior is split across smaller modules:
 
 - `lua/gp/chat.lua`: `new_chat()` creates the markdown file and opens it in the requested target; `prep_chat()` sets markdown options and buffer-local shortcuts; `ChatDelete` deletes the active chat after optional confirmation.
 - `lua/gp/chat/respond.lua`: `chat_respond()` parses markdown messages into `{ role, content }` records, expands `@command(...)`, orchestrates normal provider calls, and runs the native tool loop for tool-enabled OpenAI-compatible chat agents.
-- `lua/gp/init.lua`: `ChatFinder` searches existing chat files and previews matches.
+- `lua/gp/chat/finder.lua`: `ChatFinder` searches existing chat files, previews matches, supports deletion, and opens selected chats in the requested target.
 
 The extracted modules attach these functions to the same `M` table used by `require("gp")`, preserving existing public aliases.
 
@@ -95,7 +95,7 @@ Tool call/result blocks are deliberately human-readable transcript text. The MVP
 
 ## Prompt targets
 
-Text/code commands use `M.Prompt(params, target, agent, template, prompt, whisper, callback)`.
+Text/code commands are implemented in `lua/gp/prompt.lua` and use `M.Prompt(params, target, agent, template, prompt, whisper, callback)`.
 
 The target controls where model output is written:
 
@@ -188,3 +188,5 @@ Image secrets are stored in `vault` under `imager_secret`.
 ## Generated docs
 
 The README configuration snippet is bounded by `README_REFERENCE_MARKER_START` and `README_REFERENCE_MARKER_END` in `lua/gp/config.lua`. CI uses that range to update `README.md`, then uses `panvimdoc` to regenerate `doc/gp.nvim.txt`.
+
+After the size-hygiene documentation split, generated vimdoc intentionally reflects the README quick-start/overview. Extracted docs such as `docs/USAGE.md`, `docs/SHORTCUTS.md`, and `docs/EXTENDING.md` remain markdown-only unless `.github/workflows/docgen.yml` is expanded to include them.
