@@ -78,7 +78,7 @@ Built-in tool helpers live under `lua/gp/tools/`:
 - `path.lua`: workspace root resolution and path containment checks;
 - `process.lua`: bounded libuv process execution for the `run` tool.
 
-Native tools are chat-only in the MVP. Tool call/result markdown blocks are user-visible/auditable but not a structured replay contract.
+Native tools are chat-only in the MVP. Tool call/result markdown blocks are user-visible/auditable but not a structured replay contract. Historical markdown blocks are intentionally kept as plain transcript text when chats are reopened because saved chats are editable and current blocks do not carry provenance or stable replay metadata.
 
 ### `lua/gp/dispatcher.lua`
 

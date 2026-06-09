@@ -4,11 +4,11 @@ Canonical task list for this maintained fork. Keep NEXT ordered by priority. Mov
 
 ## NEXT
 
-- [P-20260608-10] Evaluate structured replay for historical markdown tool blocks.
 - [P-20260608-11] Add native tool adapters for Anthropic and Google providers.
 
 ## DONE
 
+- [P-20260608-10] Evaluate structured replay for historical markdown tool blocks — DONE 2026-06-10 00:53 +0900
 - [P-20260608-09] Split large files identified by size hygiene (`README.md`, `lua/gp/init.lua`, `tests/run.lua`) — DONE 2026-06-09 23:14 +0900
 - [P-20260608-08] Harden native tool safety and UX edge cases from audits — DONE 2026-06-09 22:34 +0900
 - [P-20260608-07] Smoke test native chat tools with the local OpenAI-compatible provider — DONE 2026-06-09 21:28 +0900

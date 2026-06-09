@@ -282,7 +282,7 @@ Safety notes:
 - `run.allowed_commands` matches exact command strings; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` bypass confirmation only when that exact path is allowlisted.
 - Model-provided `run.timeout_ms` is capped by the configured `tools.run.timeout_ms` maximum.
 - `:GpTools` shows the effective safety config for the current chat agent, including confirmation, allowlist, size, timeout, and workspace settings.
-- Tool call/result blocks are visible in chat files for auditability, but old blocks are not replayed as structured tool messages.
+- Tool call/result blocks are visible in chat files for auditability, but old blocks are intentionally not replayed as structured tool messages. Replaying editable markdown as provider-native tool output is deferred until a safer opt-in format with provenance/versioning exists.
 - `@command(...)` remains human prompt preprocessing and is separate from native tools.
 
 For the full command reference, including chat, text/code, speech, agent, image, and scripting commands, see [Usage](docs/USAGE.md).

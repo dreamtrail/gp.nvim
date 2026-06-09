@@ -91,7 +91,7 @@ Safety defaults:
 - `write` and `edit` use atomic temporary-file writes plus rename when possible and revalidate the target path immediately before rename.
 - `run` does not invoke a shell; it uses `cmd` plus `args`, output caps, and a timeout. Model-requested timeouts are capped by the configured `tools.run.timeout_ms` maximum.
 
-Tool call/result blocks are deliberately human-readable transcript text. The MVP does not parse historical blocks back into structured tool messages.
+Tool call/result blocks are deliberately human-readable transcript text. The MVP does not parse historical blocks back into structured tool messages. This is intentional: saved chat files are user-editable, current blocks lack stable call IDs/provenance, and replaying stale or forged markdown as provider-native `role = "tool"` content would strengthen untrusted history. If replay is added later, it should be explicit opt-in, OpenAI-compatible-only until provider adapters exist, strict with safe fallback to plain text, and never re-execute historical tool calls.
 
 ## Prompt targets
 
