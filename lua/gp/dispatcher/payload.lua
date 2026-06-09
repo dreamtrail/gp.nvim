@@ -165,9 +165,15 @@ M.prepare_payload = function(messages, model, provider, opts)
 				end
 			end
 		end
+		local stream = true
+		if stream_override ~= nil then
+			stream = stream_override
+		elseif model.stream ~= nil then
+			stream = model.stream
+		end
 		payload = {
 			model = model.model,
-			stream = model.stream or true,
+			stream = stream,
 			system = system,
 			max_tokens = model.max_tokens,
 			temperature = model.temperature,

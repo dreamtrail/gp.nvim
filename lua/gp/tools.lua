@@ -22,6 +22,7 @@ end
 local function merge_config(agent_tools)
 	local config = vim.deepcopy(agent_tools or {})
 	config.workspace_only = config.workspace_only ~= false
+	config.stream = config.stream ~= false
 	config.max_rounds = config.max_rounds or 10
 	for name, defaults in pairs(M.defaults) do
 		config[name] = vim.tbl_extend("force", vim.deepcopy(defaults), config[name] or {})
@@ -179,6 +180,7 @@ M.resolve = function(agent, provider)
 		enabled = {},
 		config = config,
 		max_rounds = config.max_rounds,
+		stream = config.stream,
 	}
 	for _, name in ipairs(enabled) do
 		if M.builtins[name] then
@@ -349,6 +351,7 @@ M.setup = function(gp)
 		table.insert(lines, "- agent: " .. (agent and agent.name or "none"))
 		if resolved then
 			table.insert(lines, "- enabled: " .. table.concat(resolved.enabled, ", "))
+			table.insert(lines, "- stream: " .. tostring(resolved.stream ~= false))
 			table.insert(lines, "- workspace_only: " .. tostring(resolved.config.workspace_only ~= false))
 		else
 			table.insert(lines, "- enabled: none")

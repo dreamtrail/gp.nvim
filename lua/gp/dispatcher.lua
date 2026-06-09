@@ -115,6 +115,60 @@ D._parse_openai_response = function(raw_response)
 	return message, message.tool_calls or {}, choice.finish_reason, nil
 end
 
+D._merge_openai_tool_call_delta = function(tool_calls, delta_call)
+	if type(tool_calls) ~= "table" or type(delta_call) ~= "table" then
+		return tool_calls
+	end
+	local raw_index = delta_call.index
+	local index = type(raw_index) == "number" and raw_index + 1 or #tool_calls + 1
+	local call = tool_calls[index] or { ["function"] = {} }
+	if delta_call.id then
+		call.id = delta_call.id
+	end
+	if delta_call.type then
+		call.type = delta_call.type
+	end
+	if type(delta_call["function"]) == "table" then
+		call["function"] = call["function"] or {}
+		local fn = delta_call["function"]
+		if fn.name then
+			call["function"].name = (call["function"].name or "") .. fn.name
+		end
+		if fn.arguments then
+			call["function"].arguments = (call["function"].arguments or "") .. fn.arguments
+		end
+	end
+	tool_calls[index] = call
+	return tool_calls
+end
+
+D._validate_openai_stream_tool_calls = function(tool_calls)
+	for index, call in ipairs(tool_calls or {}) do
+		local fn = call and call["function"]
+		if not call or not call.id or call.id == "" then
+			return "streamed tool call " .. index .. " is missing id"
+		end
+		if not call.type or call.type == "" then
+			return "streamed tool call " .. index .. " is missing type"
+		end
+		if type(fn) ~= "table" or not fn.name or fn.name == "" then
+			return "streamed tool call " .. index .. " is missing function name"
+		end
+		local raw = fn.arguments
+		if raw == nil then
+			return "streamed tool call " .. index .. " is missing function arguments"
+		end
+		if raw == "" then
+			raw = "{}"
+		end
+		local ok, args = pcall(vim.json.decode, raw)
+		if not ok or type(args) ~= "table" then
+			return "streamed tool call " .. index .. " has invalid JSON arguments: " .. tostring(args)
+		end
+	end
+	return nil
+end
+
 -- gpt query
 ---@param buf number | nil # buffer number
 ---@param provider string # provider name
@@ -296,21 +350,26 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 							is_anthropic_reasoner = false
 						end
 					end
-				elseif
-					line:match("choices")
-					and line:match("delta")
-					and (line:match("content") or line:match("reasoning"))
-				then
-					line = vim.json.decode(line)
-					-- logger.debug("line: " .. vim.inspect(line))
-					if line.choices and line.choices[1] and line.choices[1].delta then
-						if line.choices[1].delta.content then
-							content = line.choices[1].delta.content
+				elseif D._is_openai_compatible_provider(qt.provider) and line:match("choices") and line:match("delta") then
+					local ok, decoded = pcall(vim.json.decode, line)
+					if ok and decoded.choices and decoded.choices[1] then
+						local choice = decoded.choices[1]
+						local delta = choice.delta or {}
+						if choice.finish_reason then
+							qt.finish_reason = choice.finish_reason
+						end
+						if delta.tool_calls then
+							qt.tool_calls = qt.tool_calls or {}
+							for _, delta_call in ipairs(delta.tool_calls) do
+								D._merge_openai_tool_call_delta(qt.tool_calls, delta_call)
+							end
+						end
+						if delta.content then
+							content = delta.content
 						end
 						if show_thinking and is_other_reasoner then
 							if type(content) ~= "string" or content == "" then
-								local reasoning_content = line.choices[1].delta.reasoning_content
-									or line.choices[1].delta.reasoning
+								local reasoning_content = delta.reasoning_content or delta.reasoning
 								if type(reasoning_content) == "string" and reasoning_content ~= "" then
 									local len = #reasoning_content
 									if total_reasoning_length == 0 and len > 0 then
@@ -331,6 +390,8 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 								total_reasoning_length = -1
 							end
 						end
+					elseif line ~= "[DONE]" then
+						logger.warning(qt.provider .. " stream response parse failed: " .. tostring(decoded))
 					end
 				end
 				process_content(qt, content)
@@ -375,7 +436,15 @@ local query = function(buf, provider, payload, handler, on_exit, callback, strea
 
 				local raw_response = qt.raw_response
 				local content = qt.response
-				if D._is_openai_compatible_provider(qt.provider) and content == "" and raw_response:match("choices") then
+				if D._is_openai_compatible_provider(qt.provider) and qt.stream and qt.tool_calls and #qt.tool_calls > 0 then
+					qt.response_message = qt.response_message or { role = "assistant" }
+					qt.response_message.content = qt.response
+					qt.response_message.tool_calls = qt.tool_calls
+					qt.tool_call_parse_error = D._validate_openai_stream_tool_calls(qt.tool_calls)
+					if qt.tool_call_parse_error then
+						logger.warning(qt.provider .. " streamed tool call parse failed: " .. qt.tool_call_parse_error)
+					end
+				elseif D._is_openai_compatible_provider(qt.provider) and not qt.stream and content == "" and raw_response:match("choices") then
 					local message, tool_calls, finish_reason, parse_err = D._parse_openai_response(raw_response)
 					if message then
 						qt.response_message = message

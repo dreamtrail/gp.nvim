@@ -143,6 +143,8 @@ Fixes:
 - ensure the current chat agent has `tools = { enabled = { "read", "write", "edit", "run" } }`;
 - switch to that agent with `:GpAgent AgentName` in a chat buffer;
 - use an OpenAI-compatible provider for MVP tool calling;
+- when tools are configured on an unsupported provider, gp.nvim warns once and falls back to a normal non-streaming request without tool schemas;
+- if a local/OpenAI-compatible provider has trouble with streamed tool calls, set `tools.stream = false` on that agent to use the non-streaming path;
 - remember that native tools are chat-only and do not run for `GpRewrite`, `GpAppend`, or other prompt commands.
 
 ## Tool path is rejected

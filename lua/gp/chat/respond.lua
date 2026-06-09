@@ -6,6 +6,8 @@ local config = require("gp.config")
 
 local M = {}
 
+local warned_tool_stream_fallback = {}
+
 local function append_lines(gp, buf, lines)
 	local last_content_line = gp.helpers.last_content_line(buf)
 	gp.helpers.undojoin(buf)
@@ -26,6 +28,12 @@ local function ensure_trailing_newline(text)
 	return text
 end
 
+local function trim_trailing_blank_lines(gp, buf)
+	local last_content_line = gp.helpers.last_content_line(buf)
+	gp.helpers.undojoin(buf)
+	vim.api.nvim_buf_set_lines(buf, last_content_line, -1, false, {})
+end
+
 local function tool_call_args(call)
 	local raw = call and call["function"] and call["function"].arguments or "{}"
 	if raw == "" then
@@ -41,6 +49,8 @@ end
 local function finish_chat(gp, buf, win, headers, messages, cmd_pattern)
 	-- write user prompt
 	local last_content_line = gp.helpers.last_content_line(buf)
+	gp.helpers.undojoin(buf)
+	vim.api.nvim_buf_set_lines(buf, last_content_line, -1, false, {})
 	gp.helpers.undojoin(buf)
 	vim.api.nvim_buf_set_lines(buf, last_content_line, last_content_line, false, { "", gp.config.chat_user_prefix, "" })
 
@@ -144,6 +154,15 @@ local function run_tool_chat(gp, ctx)
 	local tool_state = ctx.tool_state
 	local schemas = gp.tools.openai_schemas(tool_state)
 	local max_rounds = tool_state.max_rounds or 10
+	local stream_tools = tool_state.stream ~= false
+	if stream_tools and not gp.tools.supports_provider(ctx.provider) then
+		local key = tostring(ctx.provider or "openai")
+		if not warned_tool_stream_fallback[key] then
+			warned_tool_stream_fallback[key] = true
+			gp.logger.warning("native tool streaming is only supported for OpenAI-compatible providers; falling back to non-streaming")
+		end
+		stream_tools = false
+	end
 	local round = 0
 
 	local function finish_with_limit()
@@ -161,6 +180,21 @@ local function run_tool_chat(gp, ctx)
 		finish_chat(gp, ctx.buf, ctx.win, ctx.headers, ctx.messages, ctx.cmd_pattern)
 	end
 
+	local function clear_streamed_tool_content(qt)
+		if not (qt and qt.stream and qt.response and qt.response ~= "") then
+			return
+		end
+		if not (qt.first_line and qt.last_line and qt.first_line >= 0 and qt.last_line >= qt.first_line) then
+			return
+		end
+		gp.helpers.undojoin(ctx.buf)
+		vim.api.nvim_buf_set_lines(ctx.buf, qt.first_line, qt.last_line + 1, false, {})
+		qt.response = ""
+		if qt.response_message then
+			qt.response_message.content = ""
+		end
+	end
+
 	local function query_round()
 		if round >= max_rounds then
 			finish_with_limit()
@@ -168,15 +202,26 @@ local function run_tool_chat(gp, ctx)
 		end
 		round = round + 1
 		local payload = gp.dispatcher.prepare_payload(active_messages, ctx.model, ctx.provider, {
-			stream = false,
+			stream = stream_tools,
 			tools = schemas,
 			tool_choice = "auto",
 		})
+		local handler = function() end
+		if stream_tools then
+			handler = gp.dispatcher.create_handler(
+				ctx.buf,
+				ctx.win,
+				gp.helpers.last_content_line(ctx.buf),
+				true,
+				"",
+				not gp.config.chat_free_cursor
+			)
+		end
 		gp.dispatcher.query(
 			ctx.buf,
 			ctx.provider,
 			payload,
-			function() end,
+			handler,
 			vim.schedule_wrap(function(qid)
 				local qt = gp.tasker.get_query(qid)
 				if not qt then
@@ -184,7 +229,10 @@ local function run_tool_chat(gp, ctx)
 				end
 				local tool_calls = qt.tool_calls or {}
 				if #tool_calls == 0 then
-					if qt.response and qt.response ~= "" then
+					if qt.stream then
+						trim_trailing_blank_lines(gp, ctx.buf)
+					end
+					if not qt.stream and qt.response and qt.response ~= "" then
 						local final_handler = gp.dispatcher.create_handler(
 							ctx.buf,
 							ctx.win,
@@ -195,6 +243,20 @@ local function run_tool_chat(gp, ctx)
 						)
 						final_handler(qid, ensure_trailing_newline(qt.response))
 					end
+					finish_chat(gp, ctx.buf, ctx.win, ctx.headers, ctx.messages, ctx.cmd_pattern)
+					return
+				end
+
+				clear_streamed_tool_content(qt)
+				if qt.tool_call_parse_error then
+					append_text(
+						gp,
+						ctx.buf,
+						gp.tools.format_result_block(
+							"tool_loop",
+							"ERROR: streamed tool call parse failed: " .. qt.tool_call_parse_error
+						)
+					)
 					finish_chat(gp, ctx.buf, ctx.win, ctx.headers, ctx.messages, ctx.cmd_pattern)
 					return
 				end
@@ -227,7 +289,7 @@ local function run_tool_chat(gp, ctx)
 				end)
 			end),
 			nil,
-			false,
+			stream_tools,
 			gp.config.chat_show_thinking
 		)
 	end
@@ -423,6 +485,7 @@ M.setup = function(gp)
 			tool_state, tool_reason = gp.tools.resolve(agent, provider)
 		end
 
+		local force_non_tool_stream = nil
 		if tool_state then
 			run_tool_chat(gp, {
 				buf = buf,
@@ -437,11 +500,23 @@ M.setup = function(gp)
 			})
 			return
 		elseif agent.tools and tool_reason and tool_reason ~= "tools disabled" then
-			gp.logger.warning(tool_reason)
+			if agent.tools.stream ~= false and tool_reason:match("OpenAI%-compatible") then
+				local key = tostring(provider or agent.provider or "openai")
+				if not warned_tool_stream_fallback[key] then
+					warned_tool_stream_fallback[key] = true
+					gp.logger.warning(tool_reason .. "; falling back to non-streaming")
+				end
+				force_non_tool_stream = false
+			else
+				gp.logger.warning(tool_reason)
+			end
 		end
 
 		-- call the model and write response
 		local stream = agent.stream ~= nil and agent.stream or gp.config.chat_stream_response
+		if force_non_tool_stream ~= nil then
+			stream = force_non_tool_stream
+		end
 		local handler = gp.dispatcher.create_handler(buf, win, gp.helpers.last_content_line(buf), true, "", not gp.config.chat_free_cursor)
 		if not stream then
 			local base_handler = handler
@@ -449,10 +524,11 @@ M.setup = function(gp)
 				base_handler(qid, ensure_trailing_newline(chunk))
 			end
 		end
+		local payload_opts = force_non_tool_stream ~= nil and { stream = stream } or nil
 		gp.dispatcher.query(
 			buf,
 			provider,
-			gp.dispatcher.prepare_payload(messages, model, provider),
+			gp.dispatcher.prepare_payload(messages, model, provider, payload_opts),
 			handler,
 			vim.schedule_wrap(function(qid)
 				local qt = gp.tasker.get_query(qid)

@@ -75,10 +75,12 @@ Main modules:
 A tool-enabled chat response follows this loop:
 
 1. `chat_respond()` parses the chat as usual and writes the assistant prefix.
-2. If the current chat agent has `tools.enabled` and the provider is OpenAI-compatible, it builds a non-streaming payload with tool schemas.
-3. Dispatcher parses non-streaming responses into `response_message`, `tool_calls`, and `finish_reason` fields on the tasker query record.
-4. If tool calls exist, `chat_respond()` records visible tool-call blocks, executes each call in order, records visible tool-result blocks, appends structured `role = "tool"` messages internally, and sends the next non-streaming request.
-5. If no tool calls exist, the final assistant response is written and normal chat finalization runs.
+2. If the current chat agent has `tools.enabled` and the provider is OpenAI-compatible, it builds a payload with tool schemas. Tool-use streaming defaults to on; set `tools.stream = false` per agent for the previous non-streaming path.
+3. If tools are configured for a provider without native tool support, `chat_respond()` warns once for default streamed tool-use and falls back to a normal non-streaming chat request without tool schemas.
+4. Dispatcher parses non-streaming responses or streamed OpenAI-compatible `delta.tool_calls` into `response_message`, `tool_calls`, and `finish_reason` fields on the tasker query record. Streamed tool-call argument fragments are merged by call index.
+5. If tool calls exist, `chat_respond()` suppresses any streamed assistant-visible text from that tool-call round, records visible tool-call blocks, executes each call in order, records visible tool-result blocks, appends structured `role = "tool"` messages internally, and sends the next request.
+6. If streamed tool-call arguments are incomplete or invalid JSON, `chat_respond()` appends a visible error block, does not execute tools, and stops that response round.
+7. If no tool calls exist, the final assistant response streams into the chat when streaming is enabled, then normal chat finalization runs.
 
 Safety defaults:
 
@@ -112,7 +114,7 @@ The target controls where model output is written:
 Key paths:
 
 - `D.setup(opts)` merges configured providers with defaults and registers provider secrets with `vault`;
-- `D.prepare_payload(messages, model, provider, opts)` is a compatibility alias to `lua/gp/dispatcher/payload.lua` and converts internal messages into the target provider format; `opts` can inject OpenAI-compatible tool schemas and force non-streaming requests;
+- `D.prepare_payload(messages, model, provider, opts)` is a compatibility alias to `lua/gp/dispatcher/payload.lua` and converts internal messages into the target provider format; `opts` can inject OpenAI-compatible tool schemas and select streaming or non-streaming requests;
 - `D.query(...)` resolves provider secrets and delegates to the internal `query` function;
 - `D.create_handler(...)` is a compatibility alias to `lua/gp/dispatcher/handler.lua` and creates buffer writers for streaming and buffered responses.
 

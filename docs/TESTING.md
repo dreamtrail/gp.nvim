@@ -120,7 +120,9 @@ The committed tests should cover:
 - OpenAI-compatible payloads receiving native tool schemas only when tools are enabled;
 - Anthropic/Google payloads not receiving OpenAI tool schemas;
 - non-stream OpenAI response parsing for final content, one tool call, and multiple tool calls;
-- chat tool-loop orchestration with a mocked dispatcher;
+- streamed OpenAI-compatible tool-call delta merging and invalid argument detection;
+- chat tool-loop orchestration with a mocked dispatcher, including default streaming and `tools.stream = false` opt-out;
+- unsupported native-tool provider fallback to non-streaming requests without OpenAI tool schemas;
 - visible tool call/result blocks in chat buffers;
 - built-in `read`, `write`, `edit`, and `run` behavior in temporary workspaces;
 - confirmation allow/deny paths by stubbing `vim.ui.select`.
@@ -139,7 +141,7 @@ Avoid live remote-provider tests with sensitive files unless you explicitly inte
 
 Provider changes should be validated with the provider they affect:
 
-- OpenAI-compatible providers: check payload shape, streaming/non-streaming behavior, native tool schemas/tool calls when enabled, and auth header handling.
+- OpenAI-compatible providers: check payload shape, streaming/non-streaming behavior, streamed `delta.tool_calls`, native tool schemas/tool calls when enabled, and auth header handling.
 - Anthropic: check `system`, `messages`, optional `thinking`, and attachment handling.
 - Google/Vertex: check `contents`, `parts`, `system_instruction`, search/thinking options, and bearer refresh if applicable.
 - Copilot: check secret extraction and bearer refresh paths without logging tokens.

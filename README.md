@@ -295,6 +295,8 @@ Example tool-enabled agent:
     tools = {
         enabled = { "read", "write", "edit", "run" },
         workspace_only = true,
+        -- streamed tool-use is on by default; set false for compatibility
+        stream = true,
         -- read runs automatically by default
         write = { confirm = true },
         edit = { confirm = true },
@@ -310,7 +312,9 @@ Safety notes:
 
 - Tools work in chat sessions only for the MVP.
 - Tools currently use OpenAI-compatible tool-calling payloads; Anthropic/Google native tool formats are not implemented yet.
-- Tool-enabled chats use non-streaming requests while tool calls are active.
+- Tool-enabled chats stream OpenAI-compatible tool-use rounds by default; set `tools.stream = false` per agent to use the previous non-streaming path.
+- During streamed tool-call rounds, tool-call argument chunks are collected without being shown as assistant text; final no-tool assistant responses stream into the chat.
+- If a tool-enabled agent uses a provider without native tool support, gp.nvim warns once and falls back to a normal non-streaming chat request without tool schemas.
 - `workspace_only = true` is the default; set it to `false` only for trusted/local models.
 - `write`, `edit`, and non-allowlisted `run` calls ask for confirmation by default.
 - Tool call/result blocks are visible in chat files for auditability, but old blocks are not replayed as structured tool messages.

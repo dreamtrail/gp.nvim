@@ -110,7 +110,7 @@ A normal session follows this path:
 6. `init.lua` registers hook commands and built-in commands such as `GpChatNew`, `GpChatRespond`, `GpRewrite`, and `GpPopup`.
 7. A user command builds chat or prompt messages from the current buffer, range, selection, arguments, and optional `.gp.md` repository instructions.
 8. `dispatcher.prepare_payload()` converts those messages into the target provider's request format.
-9. For tool-enabled chat agents using OpenAI-compatible providers, chat response orchestration forces non-streaming requests, injects native tool schemas, executes requested built-in tools, appends visible tool call/result blocks, and sends structured `role = "tool"` messages for follow-up rounds.
+9. For tool-enabled chat agents using OpenAI-compatible providers, chat response orchestration injects native tool schemas, streams tool-use rounds by default unless `tools.stream = false`, executes requested built-in tools, appends visible tool call/result blocks, and sends structured `role = "tool"` messages for follow-up rounds.
 10. `dispatcher.query()` starts a `curl` process through `tasker.run()`.
 11. Streaming or buffered response data is parsed by dispatcher handlers and written back into Neovim buffers.
 12. Completion callbacks run cleanup, selection adjustment, and the `User GpDone` autocommand where applicable.
