@@ -4,26 +4,30 @@ This roadmap is a high-level guide. The canonical task list is `docs/TODO.md`.
 
 ## Current Focus
 
-- Validate native chat tools against the local OpenAI-compatible provider.
-- Harden tool safety and UX based on audit follow-ups.
-- Keep the refactored facade architecture maintainable as tool support expands.
+- Choose the next maintenance priority after completing the native tools milestone.
+- Keep the refactored facade architecture maintainable as provider support evolves.
 
 ## Near Term
 
-- Manual smoke testing for tool-enabled local chat agents.
-- Follow-up hardening for confirmation behavior, command allowlists, path revalidation, and large-file edit UX.
-- Split oversized files identified by size hygiene.
+- Broader provider compatibility testing for OpenAI-compatible local servers.
+- Watch for user feedback on streamed native tool-use and safety defaults.
+- Triage remaining >500 LOC modules if future work touches them.
 
 ## Later
 
-- Structured replay of historical markdown tool blocks.
-- Native tool adapters for Anthropic and Google providers.
-- Broader provider compatibility testing for OpenAI-compatible local servers.
+- Structured replay of historical markdown tool blocks, only with an approved opt-in provenance-aware design.
+- Native tool adapters for Anthropic and Google providers, deferred until there is a concrete provider-specific need.
 
 ## Completed Milestones
 
 - Fork maintainer and contributor documentation.
 - Core facade refactor for maintainability.
 - Native OpenAI-compatible chat tools MVP.
+- Default-on streamed native tool-use.
+- Local OpenAI-compatible provider smoke validation.
+- Native tool safety and UX hardening.
+- Size-hygiene split for README, facade, and tests.
+- Structured replay evaluation and defer decision.
+- Anthropic/Google native tool adapter defer decision.
 - Dispatcher status timer crash hotfix.
 - Chat newline formatting hotfix.

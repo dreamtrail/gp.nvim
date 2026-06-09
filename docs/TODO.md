@@ -4,7 +4,7 @@ Canonical task list for this maintained fork. Keep NEXT ordered by priority. Mov
 
 ## NEXT
 
-- None currently.
+- [P-20260610-01] Choose the next maintenance priority for the fork.
 
 ## DONE
 
