@@ -63,7 +63,7 @@ Chat parsing depends on configured user and assistant prefixes. Header fields ma
 
 ## Native chat tools
 
-Native tools are opt-in per chat agent through `agent.tools.enabled`. Default agents do not enable tools. The MVP is chat-only and uses OpenAI-compatible `tools` / `tool_calls` / `role = "tool"` message shapes; Anthropic and Google native tool formats are intentionally not implemented yet.
+Native tools are opt-in per chat agent through `agent.tools.enabled`. Default agents do not enable tools. The current implementation is chat-only and uses OpenAI-compatible `tools` / `tool_calls` / `role = "tool"` message shapes. Anthropic and Google native tool formats are intentionally deferred for now because the OpenAI-compatible path covers the active local-provider workflow.
 
 Main modules:
 
