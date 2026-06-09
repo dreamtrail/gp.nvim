@@ -86,10 +86,10 @@ Safety defaults:
 
 - `read` is read-only and can run without confirmation.
 - `write`, `edit`, and non-allowlisted `run` calls require `vim.ui.select()` confirmation by default.
-- `run.allowed_commands` bypasses confirmation for trusted commands.
+- `run.allowed_commands` bypasses confirmation for trusted commands by exact string match; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` require the exact path in the allowlist.
 - `workspace_only = true` is the default; trusted/local agents may set it to `false`.
-- `write` and `edit` use atomic temporary-file writes plus rename when possible.
-- `run` does not invoke a shell; it uses `cmd` plus `args`, output caps, and a timeout.
+- `write` and `edit` use atomic temporary-file writes plus rename when possible and revalidate the target path immediately before rename.
+- `run` does not invoke a shell; it uses `cmd` plus `args`, output caps, and a timeout. Model-requested timeouts are capped by the configured `tools.run.timeout_ms` maximum.
 
 Tool call/result blocks are deliberately human-readable transcript text. The MVP does not parse historical blocks back into structured tool messages.
 

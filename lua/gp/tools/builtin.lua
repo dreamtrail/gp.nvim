@@ -78,7 +78,7 @@ local function mkdir_parent(file)
 	end
 end
 
-local function atomic_write(file, content)
+local function atomic_write(file, content, revalidate)
 	mkdir_parent(file)
 	local parent = vim.fn.fnamemodify(file, ":h")
 	local temp = parent .. "/.gp-tool-" .. helpers.uuid() .. ".tmp"
@@ -91,6 +91,13 @@ local function atomic_write(file, content)
 	if not ok then
 		pcall(os.remove, temp)
 		return nil, "failed to write temporary file: " .. tostring(write_err)
+	end
+	if revalidate then
+		local resolved, resolve_err = path.resolve(revalidate.path, revalidate.config, revalidate.for_new)
+		if not resolved then
+			pcall(os.remove, temp)
+			return nil, "target path revalidation failed: " .. tostring(resolve_err)
+		end
 	end
 	local renamed, rename_err = os.rename(temp, file)
 	if not renamed then
@@ -115,9 +122,8 @@ local function find_all_plain(content, needle)
 end
 
 local function allowed_command(cmd, allowed)
-	local basename = cmd:match("([^/\\]+)$") or cmd
 	for _, name in ipairs(allowed or {}) do
-		if cmd == name or basename == name then
+		if cmd == name then
 			return true
 		end
 	end
@@ -171,6 +177,8 @@ local specs = {
 				"bytes: " .. tostring(#content),
 				"total_bytes: " .. tostring(data.total_bytes),
 				"truncated: " .. tostring(truncated),
+				"max_bytes: " .. tostring(cfg.max_bytes),
+				"max_lines: " .. tostring(cfg.max_lines),
 				"",
 				"content:",
 				content,
@@ -200,7 +208,7 @@ local specs = {
 				return
 			end
 			if #args.content > cfg.max_bytes then
-				done(nil, "content exceeds max_bytes: " .. tostring(cfg.max_bytes))
+				done(nil, "content exceeds max_bytes: " .. tostring(#args.content) .. " > " .. tostring(cfg.max_bytes))
 				return
 			end
 			local file, err = path.resolve(args.path, ctx.config, true)
@@ -214,7 +222,7 @@ local specs = {
 				return
 			end
 			local ok
-			ok, err = atomic_write(file, args.content)
+			ok, err = atomic_write(file, args.content, { path = args.path, config = ctx.config, for_new = true })
 			if not ok then
 				done(nil, err)
 				return
@@ -258,7 +266,7 @@ local specs = {
 		handler = function(args, ctx, done)
 			local cfg = merge(DEFAULTS.edit, ctx.config.edit)
 			if #args.edits > cfg.max_edits then
-				done(nil, "too many edits; max_edits is " .. tostring(cfg.max_edits))
+				done(nil, "too many edits: " .. tostring(#args.edits) .. " > max_edits " .. tostring(cfg.max_edits))
 				return
 			end
 			local file, err = path.resolve(args.path, ctx.config, false)
@@ -273,7 +281,7 @@ local specs = {
 				return
 			end
 			if data.truncated then
-				done(nil, "file exceeds max_bytes: " .. tostring(cfg.max_bytes))
+				done(nil, "file exceeds max_bytes: " .. tostring(data.total_bytes) .. " > " .. tostring(cfg.max_bytes))
 				return
 			end
 			local ranges = {}
@@ -312,7 +320,7 @@ local specs = {
 			table.insert(output, data.content:sub(cursor))
 			local new_content = table.concat(output, "")
 			local ok
-			ok, err = atomic_write(file, new_content)
+			ok, err = atomic_write(file, new_content, { path = args.path, config = ctx.config, for_new = false })
 			if not ok then
 				done(nil, err)
 				return
@@ -371,11 +379,14 @@ local specs = {
 			else
 				run_cwd = path.workspace_root(ctx.config)
 			end
+			local max_timeout = tonumber(cfg.timeout_ms) or DEFAULTS.run.timeout_ms
+			local requested_timeout = tonumber(args.timeout_ms) or max_timeout
+			local timeout_ms = math.min(requested_timeout, max_timeout)
 			process.run({
 				cmd = cmd,
 				args = cmd_args,
 				cwd = run_cwd,
-				timeout_ms = args.timeout_ms or cfg.timeout_ms,
+				timeout_ms = timeout_ms,
 				max_output_bytes = cfg.max_output_bytes,
 				buf = ctx.buf,
 			}, function(result)

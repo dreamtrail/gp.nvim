@@ -172,9 +172,9 @@ Symptoms:
 Fixes:
 
 - choose `Run once` in the confirmation dialog for non-allowlisted commands;
-- add trusted commands to `tools.run.allowed_commands` for that agent;
+- add trusted commands to `tools.run.allowed_commands` for that agent; entries match exact command strings, so `/usr/bin/make` needs an exact `/usr/bin/make` entry rather than just `make`;
 - pass command arguments as `args = { ... }`, not through `bash -c`;
-- increase `tools.run.timeout_ms` if a trusted command needs more time.
+- increase `tools.run.timeout_ms` if a trusted command needs more time; model-requested timeouts are capped by this configured maximum.
 
 ## `.gp.md` context is not used
 

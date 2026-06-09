@@ -241,10 +241,21 @@ test("GpTools opens scratch buffer with built-in and enabled tool details", func
 	assert_true(text:match("agent: ToolAgent"), "tools buffer shows current chat agent")
 	assert_true(text:match("enabled: read, write, edit, run"), "tools buffer shows enabled tool list")
 	assert_true(text:match("stream: true"), "tools buffer shows default-on streaming")
+	assert_true(text:match("workspace_only: true"), "tools buffer shows workspace safety")
+	assert_true(text:match("max_rounds: 10"), "tools buffer shows max rounds")
 	assert_true(text:match("### read"), "tools buffer lists read tool")
+	assert_true(text:match("confirm: false"), "tools buffer shows read/write/edit confirmation config")
+	assert_true(text:match("max_bytes: 65536"), "tools buffer shows read size limit")
+	assert_true(text:match("max_lines: 2000"), "tools buffer shows read line limit")
 	assert_true(text:match("### write"), "tools buffer lists write tool")
+	assert_true(text:match("max_bytes: 262144"), "tools buffer shows write size limit")
 	assert_true(text:match("### edit"), "tools buffer lists edit tool")
+	assert_true(text:match("max_edits: 20"), "tools buffer shows edit limit")
 	assert_true(text:match("### run"), "tools buffer lists run tool")
+	assert_true(text:match("confirm: true"), "tools buffer shows run confirmation config")
+	assert_true(text:match("allowed_commands: printf"), "tools buffer shows run allowlist")
+	assert_true(text:match("timeout_ms: 1000"), "tools buffer shows run timeout")
+	assert_true(text:match("max_output_bytes: 1024"), "tools buffer shows run output limit")
 	vim.api.nvim_buf_delete(buf, { force = true })
 end)
 
@@ -616,6 +627,8 @@ test("built-in tools enforce workspace limits confirmation and file edits", func
 	assert_true(limited_read.content:match("bytes: 4"), "read bytes reports returned bytes")
 	assert_true(limited_read.content:match("total_bytes: 7"), "read reports total file bytes")
 	assert_true(limited_read.content:match("truncated: true"), "read reports truncation")
+	assert_true(limited_read.content:match("max_bytes: 4"), "read reports byte limit for truncated content")
+	assert_true(limited_read.content:match("max_lines: 2000"), "read reports line limit")
 
 	local write_result = exec_tool(gp, tool_call("w1", "write", [[{"path":"dir/new.txt","content":"hello"}]]), agent)
 	assert_true(write_result.content:match("bytes_written: 5"), "write returns byte summary")
@@ -661,9 +674,45 @@ test("built-in tools enforce workspace limits confirmation and file edits", func
 
 	local printf_path = vim.fn.exepath("printf")
 	assert_true(printf_path ~= "", "printf executable exists")
-	local run_abs = exec_tool(gp, tool_call("runabs", "run", vim.json.encode({ cmd = printf_path, args = { "ok" } })), agent)
-	assert_true(run_abs.content:match("exit_code: 0"), "allowed command basename bypasses confirmation")
+	local denied_abs
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Deny")
+	end, function()
+		denied_abs = exec_tool(gp, tool_call("runabsdeny", "run", vim.json.encode({ cmd = printf_path, args = { "blocked" } })), agent)
+	end)
+	assert_true(denied_abs.is_error, "absolute command with bare allowlist still requires confirmation")
+	local exact_path_agent = vim.deepcopy(agent)
+	exact_path_agent.tools.run.allowed_commands = { printf_path }
+	local run_abs = exec_tool(gp, tool_call("runabs", "run", vim.json.encode({ cmd = printf_path, args = { "ok" } })), exact_path_agent)
+	assert_true(run_abs.content:match("exit_code: 0"), "exact absolute allowlist bypasses confirmation")
 	assert_true(run_abs.content:match("stdout:\nok"), "absolute allowed command runs")
+
+	local process = require("gp.tools.process")
+	local captured_timeout = nil
+	local clamp_agent = vim.deepcopy(agent)
+	clamp_agent.tools.run.timeout_ms = 123
+	clamp_agent.tools.run.allowed_commands = { "printf" }
+	with_stub(process, "run", function(opts, callback)
+		captured_timeout = opts.timeout_ms
+		callback({ exit_code = 0, timed_out = false, stdout = "", stderr = "", stdout_truncated = false, stderr_truncated = false })
+	end, function()
+		local clamped = exec_tool(gp, tool_call("clamp", "run", [[{"cmd":"printf","args":["x"],"timeout_ms":9999}]]), clamp_agent)
+		assert_true(not clamped.is_error, "clamped timeout command succeeds")
+	end)
+	assert_eq(captured_timeout, 123, "model timeout_ms is clamped to configured maximum")
+
+	local malformed_timeout = nil
+	local malformed_agent = vim.deepcopy(agent)
+	malformed_agent.tools.run.timeout_ms = "not-a-number"
+	malformed_agent.tools.run.allowed_commands = { "printf" }
+	with_stub(process, "run", function(opts, callback)
+		malformed_timeout = opts.timeout_ms
+		callback({ exit_code = 0, timed_out = false, stdout = "", stderr = "", stdout_truncated = false, stderr_truncated = false })
+	end, function()
+		local fallback = exec_tool(gp, tool_call("malformed-timeout", "run", [[{"cmd":"printf","args":["x"]}]]), malformed_agent)
+		assert_true(not fallback.is_error, "malformed configured timeout falls back without error")
+	end)
+	assert_eq(malformed_timeout, 30000, "malformed configured timeout_ms falls back to default maximum")
 
 	local timeout_agent = vim.deepcopy(agent)
 	timeout_agent.tools.run.allowed_commands = { "sleep" }
@@ -745,6 +794,46 @@ test("workspace validation covers absolute paths cwd symlinks and workspace over
 		print("skip - symlink escape fixture unsupported")
 	end
 	vim.fn.delete(outside, "rf")
+end)
+
+test("write and edit revalidate target paths before atomic rename", function()
+	local agent = gp.get_chat_agent("ToolAgent")
+	local path_tools = require("gp.tools.path")
+	local original_resolve = path_tools.resolve
+	local write_calls = 0
+	local denied_write
+	with_stub(path_tools, "resolve", function(requested, opts, for_new)
+		write_calls = write_calls + 1
+		if write_calls == 1 then
+			return workspace .. "/revalidate-write.txt", nil
+		end
+		assert_eq(requested, "revalidate-write.txt", "write revalidates original requested path")
+		assert_eq(for_new, true, "write revalidates as new/write target")
+		return nil, "path escapes workspace root: revalidate-write.txt"
+	end, function()
+		denied_write = exec_tool(gp, tool_call("wrv", "write", [[{"path":"revalidate-write.txt","content":"blocked"}]]), agent)
+	end)
+	assert_true(denied_write.is_error, "write revalidation failure rejects rename")
+	assert_true(denied_write.content:match("target path revalidation failed"), "write revalidation error is visible")
+	assert_eq(vim.fn.filereadable(workspace .. "/revalidate-write.txt"), 0, "write revalidation failure does not create target")
+
+	vim.fn.writefile({ "before" }, workspace .. "/revalidate-edit.txt")
+	local edit_calls = 0
+	local denied_edit
+	with_stub(path_tools, "resolve", function(requested, opts, for_new)
+		edit_calls = edit_calls + 1
+		if edit_calls == 1 then
+			return original_resolve(requested, opts, for_new)
+		end
+		assert_eq(requested, "revalidate-edit.txt", "edit revalidates original requested path")
+		assert_eq(for_new, false, "edit revalidates existing target")
+		return nil, "path escapes workspace root: revalidate-edit.txt"
+	end, function()
+		denied_edit = exec_tool(gp, tool_call("erv", "edit", [[{"path":"revalidate-edit.txt","edits":[{"old_text":"before","new_text":"after"}]}]]), agent)
+	end)
+	assert_true(denied_edit.is_error, "edit revalidation failure rejects rename")
+	assert_true(denied_edit.content:match("target path revalidation failed"), "edit revalidation error is visible")
+	assert_eq(vim.fn.readfile(workspace .. "/revalidate-edit.txt")[1], "before", "edit revalidation failure preserves target")
 end)
 
 test("path helpers reject NUL bytes and discover git or cwd workspace roots", function()
@@ -848,7 +937,7 @@ test("read write edit and run expose focused failure branches", function()
 	small_write_agent.tools.write = { max_bytes = 2, confirm = false }
 	local too_large_write = exec_tool(gp, tool_call("wmax", "write", [[{"path":"too-large.txt","content":"abc"}]]), small_write_agent)
 	assert_true(too_large_write.is_error, "write content over max_bytes rejected")
-	assert_true(too_large_write.content:match("content exceeds max_bytes: 2"), "write max_bytes error returned")
+	assert_true(too_large_write.content:match("content exceeds max_bytes: 3 > 2"), "write max_bytes error includes content size and limit")
 
 	vim.fn.writefile({ "abc abc" }, workspace .. "/edit-errors.txt")
 	local zero_match = exec_tool(gp, tool_call("ez", "edit", [[{"path":"edit-errors.txt","edits":[{"old_text":"missing","new_text":"x"}]}]]), agent)
@@ -868,7 +957,12 @@ test("read write edit and run expose focused failure branches", function()
 	max_edits_agent.tools.edit = { max_edits = 1, confirm = false }
 	local too_many_edits = exec_tool(gp, tool_call("emax", "edit", [[{"path":"edit-overlap.txt","edits":[{"old_text":"abc","new_text":"x"},{"old_text":"def","new_text":"y"}]}]]), max_edits_agent)
 	assert_true(too_many_edits.is_error, "edit over max_edits rejected")
-	assert_true(too_many_edits.content:match("too many edits; max_edits is 1"), "edit max_edits error returned")
+	assert_true(too_many_edits.content:match("too many edits: 2 > max_edits 1"), "edit max_edits error includes requested count and limit")
+	local small_edit_agent = vim.deepcopy(agent)
+	small_edit_agent.tools.edit = { max_bytes = 2, confirm = false }
+	local too_large_edit = exec_tool(gp, tool_call("efmax", "edit", [[{"path":"edit-overlap.txt","edits":[{"old_text":"abc","new_text":"x"}]}]]), small_edit_agent)
+	assert_true(too_large_edit.is_error, "edit over max_bytes rejected")
+	assert_true(too_large_edit.content:match("file exceeds max_bytes: 7 > 2"), "edit max_bytes error includes file size and limit")
 
 	local shell_agent = vim.deepcopy(agent)
 	shell_agent.tools.run.allowed_commands = { "sh" }

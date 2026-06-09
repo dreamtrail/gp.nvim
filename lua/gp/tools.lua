@@ -19,6 +19,13 @@ local function list_contains(list, value)
 	return false
 end
 
+local function format_list(list)
+	if not list or #list == 0 then
+		return "none"
+	end
+	return table.concat(list, ", ")
+end
+
 local function merge_config(agent_tools)
 	local config = vim.deepcopy(agent_tools or {})
 	config.workspace_only = config.workspace_only ~= false
@@ -353,6 +360,7 @@ M.setup = function(gp)
 			table.insert(lines, "- enabled: " .. table.concat(resolved.enabled, ", "))
 			table.insert(lines, "- stream: " .. tostring(resolved.stream ~= false))
 			table.insert(lines, "- workspace_only: " .. tostring(resolved.config.workspace_only ~= false))
+			table.insert(lines, "- max_rounds: " .. tostring(resolved.max_rounds))
 		else
 			table.insert(lines, "- enabled: none")
 			table.insert(lines, "- reason: " .. tostring(reason or "tools disabled"))
@@ -365,6 +373,27 @@ M.setup = function(gp)
 			table.insert(lines, "### " .. spec.name)
 			table.insert(lines, "")
 			table.insert(lines, spec.description)
+			if resolved then
+				local cfg = resolved.config[name] or {}
+				table.insert(lines, "")
+				table.insert(lines, "Safety config:")
+				table.insert(lines, "")
+				table.insert(lines, "- enabled: " .. tostring(list_contains(resolved.enabled, name)))
+				table.insert(lines, "- confirm: " .. tostring(cfg.confirm ~= false))
+				if name == "read" then
+					table.insert(lines, "- max_bytes: " .. tostring(cfg.max_bytes))
+					table.insert(lines, "- max_lines: " .. tostring(cfg.max_lines))
+				elseif name == "write" then
+					table.insert(lines, "- max_bytes: " .. tostring(cfg.max_bytes))
+				elseif name == "edit" then
+					table.insert(lines, "- max_bytes: " .. tostring(cfg.max_bytes))
+					table.insert(lines, "- max_edits: " .. tostring(cfg.max_edits))
+				elseif name == "run" then
+					table.insert(lines, "- allowed_commands: " .. format_list(cfg.allowed_commands))
+					table.insert(lines, "- timeout_ms: " .. tostring(cfg.timeout_ms))
+					table.insert(lines, "- max_output_bytes: " .. tostring(cfg.max_output_bytes))
+				end
+			end
 			table.insert(lines, "")
 			table.insert(lines, "```json")
 			table.insert(lines, vim.json.encode(spec.parameters))

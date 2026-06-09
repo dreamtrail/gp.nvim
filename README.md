@@ -301,7 +301,8 @@ Example tool-enabled agent:
         write = { confirm = true },
         edit = { confirm = true },
         run = {
-            -- allowed commands bypass confirmation; all others ask first
+            -- allowed commands bypass confirmation; all others ask first.
+            -- Path commands like /usr/bin/make need exact allowlist entries.
             allowed_commands = { "make", "npm", "pytest" },
         },
     },
@@ -317,6 +318,9 @@ Safety notes:
 - If a tool-enabled agent uses a provider without native tool support, gp.nvim warns once and falls back to a normal non-streaming chat request without tool schemas.
 - `workspace_only = true` is the default; set it to `false` only for trusted/local models.
 - `write`, `edit`, and non-allowlisted `run` calls ask for confirmation by default.
+- `run.allowed_commands` matches exact command strings; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` bypass confirmation only when that exact path is allowlisted.
+- Model-provided `run.timeout_ms` is capped by the configured `tools.run.timeout_ms` maximum.
+- `:GpTools` shows the effective safety config for the current chat agent, including confirmation, allowlist, size, timeout, and workspace settings.
 - Tool call/result blocks are visible in chat files for auditability, but old blocks are not replayed as structured tool messages.
 - `@command(...)` remains human prompt preprocessing and is separate from native tools.
 
