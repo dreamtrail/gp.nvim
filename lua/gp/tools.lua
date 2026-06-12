@@ -119,11 +119,54 @@ local function validate_schema(schema, value, label)
 	return nil
 end
 
-local function tool_preview(name, args, config)
+local function outside_workspace_request(name, args, config)
+	if config.workspace_only == false then
+		return nil, nil
+	end
+
+	local requested
+	local for_new = false
+	local label = "path"
+	if name == "read" or name == "edit" then
+		requested = args.path
+	elseif name == "write" then
+		requested = args.path
+		for_new = true
+	elseif name == "run" then
+		local run_cfg = config.run or {}
+		if run_cfg.workspace_only == false or not args.cwd or args.cwd == "" then
+			return nil, nil
+		end
+		requested = args.cwd
+		label = "cwd"
+	else
+		return nil, nil
+	end
+
+	local info, err = path.inspect(requested, config, for_new)
+	if not info then
+		return nil, err
+	end
+	if not info.outside then
+		return nil, nil
+	end
+	info.label = label
+	return info, nil
+end
+
+local function tool_preview(name, args, config, outside_request)
 	local lines = {
 		"Run tool: " .. name,
 		"workspace_only: " .. tostring(config.workspace_only ~= false),
 	}
+	if outside_request then
+		table.insert(lines, "WARNING: requested " .. outside_request.label .. " is outside workspace")
+		table.insert(lines, "workspace_root: " .. tostring(outside_request.root))
+		table.insert(lines, "resolved_" .. outside_request.label .. ": " .. tostring(outside_request.resolved))
+		if outside_request.real_parent then
+			table.insert(lines, "resolved_parent: " .. tostring(outside_request.real_parent))
+		end
+	end
 	if name == "write" or name == "edit" or name == "read" then
 		table.insert(lines, "path: " .. tostring(args.path))
 	end
@@ -157,14 +200,19 @@ local function needs_confirmation(spec, args, config)
 end
 
 local function confirm(spec, args, config, callback)
-	if not needs_confirmation(spec, args, config) then
-		callback(true)
+	local outside_request, outside_err = outside_workspace_request(spec.name, args, config)
+	if outside_err then
+		callback(false, nil, outside_err)
+		return
+	end
+	if not outside_request and not needs_confirmation(spec, args, config) then
+		callback(true, nil, nil)
 		return
 	end
 	vim.ui.select({ "Run once", "Deny" }, {
-		prompt = tool_preview(spec.name, args, config),
+		prompt = tool_preview(spec.name, args, config, outside_request),
 	}, function(choice)
-		callback(choice == "Run once")
+		callback(choice == "Run once", outside_request, nil)
 	end)
 end
 
@@ -299,17 +347,33 @@ M.execute_call = function(call, agent, ctx, callback)
 		return
 	end
 
-	confirm(spec, args, resolved.config, function(allowed)
+	confirm(spec, args, resolved.config, function(allowed, outside_request, confirm_err)
+		if confirm_err then
+			result.content = "ERROR: " .. confirm_err
+			result.is_error = true
+			callback(result)
+			return
+		end
 		if not allowed then
 			result.content = "ERROR: tool execution denied by user"
 			result.is_error = true
 			callback(result)
 			return
 		end
+		local exec_config = resolved.config
+		if outside_request then
+			exec_config = vim.deepcopy(resolved.config)
+			if spec.name == "run" then
+				exec_config.run = exec_config.run or {}
+				exec_config.run.workspace_only = false
+			else
+				exec_config.workspace_only = false
+			end
+		end
 		local exec_ctx = {
 			buf = ctx.buf,
 			provider = ctx.provider,
-			config = resolved.config,
+			config = exec_config,
 		}
 		spec.handler(args, exec_ctx, function(content, handler_err)
 			if handler_err then
@@ -390,6 +454,7 @@ M.setup = function(gp)
 					table.insert(lines, "- max_edits: " .. tostring(cfg.max_edits))
 				elseif name == "run" then
 					table.insert(lines, "- allowed_commands: " .. format_list(cfg.allowed_commands))
+					table.insert(lines, "- cwd_workspace_only: " .. tostring(resolved.config.workspace_only ~= false and cfg.workspace_only ~= false))
 					table.insert(lines, "- timeout_ms: " .. tostring(cfg.timeout_ms))
 					table.insert(lines, "- max_output_bytes: " .. tostring(cfg.max_output_bytes))
 				end

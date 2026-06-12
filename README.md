@@ -265,6 +265,9 @@ Example tool-enabled agent:
             -- allowed commands bypass confirmation; all others ask first.
             -- Path commands like /usr/bin/make need exact allowlist entries.
             allowed_commands = { "make", "npm", "pytest" },
+            -- set false to allow allowlisted commands to use cwd outside
+            -- the workspace without an extra outside-workspace prompt.
+            workspace_only = true,
         },
     },
 }
@@ -278,6 +281,8 @@ Safety notes:
 - During streamed tool-call rounds, tool-call argument chunks are collected without being shown as assistant text; final no-tool assistant responses stream into the chat.
 - If a tool-enabled agent uses a provider without native tool support, gp.nvim warns once and falls back to a normal non-streaming chat request without tool schemas.
 - `workspace_only = true` is the default; set it to `false` only for trusted/local models.
+- With `workspace_only = true`, outside-workspace `read`, `write`, and `edit` paths require explicit per-call confirmation even when that tool's normal `confirm` option is `false`.
+- Outside-workspace `run.cwd` also requires per-call confirmation by default; set `tools.run.workspace_only = false` if allowlisted commands may run outside the workspace without that extra prompt.
 - `write`, `edit`, and non-allowlisted `run` calls ask for confirmation by default.
 - `run.allowed_commands` matches exact command strings; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` bypass confirmation only when that exact path is allowlisted.
 - Model-provided `run.timeout_ms` is capped by the configured `tools.run.timeout_ms` maximum.

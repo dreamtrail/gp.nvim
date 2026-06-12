@@ -54,9 +54,9 @@ end
 ---@param path string
 ---@param opts table | nil
 ---@param for_new boolean | nil
----@return string | nil absolute_path
+---@return table | nil info
 ---@return string | nil error
-M.resolve = function(path, opts, for_new)
+M.inspect = function(path, opts, for_new)
 	opts = opts or {}
 	if type(path) ~= "string" or path == "" then
 		return nil, "path must be a non-empty string"
@@ -66,7 +66,6 @@ M.resolve = function(path, opts, for_new)
 	end
 
 	local root = M.workspace_root(opts)
-	local workspace_only = opts.workspace_only ~= false
 	local expanded = vim.fn.expand(path)
 	local absolute
 	if expanded:sub(1, 1) == "/" or expanded:match("^%a:[/\\]") then
@@ -74,19 +73,14 @@ M.resolve = function(path, opts, for_new)
 	else
 		absolute = normalize_absolute(root .. "/" .. expanded)
 	end
-
-	if workspace_only and not is_within(root, absolute) then
-		return nil, "path escapes workspace root: " .. path
-	end
+	local outside = not is_within(root, absolute)
 
 	if for_new then
 		local real_target = uv.fs_realpath(absolute)
 		if real_target then
 			real_target = normalize_absolute(real_target)
-			if workspace_only and not is_within(root, real_target) then
-				return nil, "path escapes workspace root: " .. path
-			end
-			return real_target, nil
+			outside = outside or not is_within(root, real_target)
+			return { root = root, requested = path, absolute = absolute, resolved = real_target, outside = outside }, nil
 		end
 		local parent = vim.fn.fnamemodify(absolute, ":h")
 		local existing_parent = parent
@@ -98,25 +92,49 @@ M.resolve = function(path, opts, for_new)
 			existing_parent = next_parent
 		end
 		local real_parent = uv.fs_realpath(existing_parent)
-		if workspace_only and real_parent and not is_within(root, real_parent) then
-			return nil, "path parent escapes workspace root: " .. path
+		if real_parent then
+			real_parent = normalize_absolute(real_parent)
+			outside = outside or not is_within(root, real_parent)
 		end
-		return absolute, nil
+		return {
+			root = root,
+			requested = path,
+			absolute = absolute,
+			resolved = absolute,
+			real_parent = real_parent,
+			outside = outside,
+		}, nil
 	end
 
 	local real = uv.fs_realpath(absolute)
 	if real then
 		real = normalize_absolute(real)
-		if workspace_only and not is_within(root, real) then
-			return nil, "path escapes workspace root: " .. path
-		end
-		return real, nil
+		outside = outside or not is_within(root, real)
+		return { root = root, requested = path, absolute = absolute, resolved = real, outside = outside }, nil
 	end
 
-	if workspace_only and not is_within(root, absolute) then
+	return { root = root, requested = path, absolute = absolute, resolved = absolute, outside = outside }, nil
+end
+
+---@param path string
+---@param opts table | nil
+---@param for_new boolean | nil
+---@return string | nil absolute_path
+---@return string | nil error
+M.resolve = function(path, opts, for_new)
+	opts = opts or {}
+	local info, err = M.inspect(path, opts, for_new)
+	if not info then
+		return nil, err
+	end
+	local workspace_only = opts.workspace_only ~= false
+	if workspace_only and info.outside then
+		if for_new and info.real_parent and not is_within(info.root, info.real_parent) then
+			return nil, "path parent escapes workspace root: " .. path
+		end
 		return nil, "path escapes workspace root: " .. path
 	end
-	return absolute, nil
+	return info.resolved, nil
 end
 
 M.is_within = is_within

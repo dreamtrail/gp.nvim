@@ -84,10 +84,13 @@ A tool-enabled chat response follows this loop:
 
 Safety defaults:
 
-- `read` is read-only and can run without confirmation.
+- `read` is read-only and can run without normal confirmation.
 - `write`, `edit`, and non-allowlisted `run` calls require `vim.ui.select()` confirmation by default.
-- `run.allowed_commands` bypasses confirmation for trusted commands by exact string match; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` require the exact path in the allowlist.
+- `run.allowed_commands` bypasses normal confirmation for trusted commands by exact string match; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` require the exact path in the allowlist.
 - `workspace_only = true` is the default; trusted/local agents may set it to `false`.
+- With `workspace_only = true`, outside-workspace `read`, `write`, and `edit` paths require explicit per-call confirmation even when the tool's normal `confirm` option is `false`.
+- Outside-workspace `run.cwd` requires per-call confirmation by default, even for allowlisted commands. Agents may set `tools.run.workspace_only = false` to allow allowlisted commands to run outside the workspace without that extra prompt while keeping global read/write/edit workspace checks enabled.
+- Confirmed outside-workspace access is implemented with a one-call relaxed config and does not mutate the resolved agent configuration.
 - `write` and `edit` use atomic temporary-file writes plus rename when possible and revalidate the target path immediately before rename.
 - `run` does not invoke a shell; it uses `cmd` plus `args`, output caps, and a timeout. Model-requested timeouts are capped by the configured `tools.run.timeout_ms` maximum.
 

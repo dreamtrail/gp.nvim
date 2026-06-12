@@ -12,7 +12,7 @@ local DEFAULTS = {
 	read = { max_bytes = 65536, max_lines = 2000, confirm = false },
 	write = { max_bytes = 262144, confirm = true },
 	edit = { max_bytes = 1048576, max_edits = 20, confirm = true },
-	run = { timeout_ms = 30000, max_output_bytes = 65536, confirm = true, allowed_commands = {} },
+	run = { timeout_ms = 30000, max_output_bytes = 65536, confirm = true, allowed_commands = {}, workspace_only = true },
 }
 
 local function merge(defaults, override)
@@ -371,7 +371,12 @@ local specs = {
 			local run_cwd
 			if args.cwd and args.cwd ~= "" then
 				local err
-				run_cwd, err = path.resolve(args.cwd, ctx.config, false)
+				local path_config = ctx.config
+				if cfg.workspace_only == false then
+					path_config = vim.deepcopy(ctx.config)
+					path_config.workspace_only = false
+				end
+				run_cwd, err = path.resolve(args.cwd, path_config, false)
 				if not run_cwd then
 					done(nil, err)
 					return

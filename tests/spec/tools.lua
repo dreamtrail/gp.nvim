@@ -24,9 +24,14 @@ test("built-in tools enforce workspace limits confirmation and file edits", func
 	assert_true(edit_result.content:match("edits_applied: 2"), "edit returns edit count")
 	assert_eq(table.concat(vim.fn.readfile(workspace .. "/sample.txt"), "\n"), "ALPHA\nBETA", "edit applies replacements")
 
-	local escape = exec_tool(gp, tool_call("bad", "read", [[{"path":"../escape.txt"}]]), agent)
-	assert_true(escape.is_error, "workspace escape rejected")
-	assert_true(escape.content:match("escapes workspace root"), "workspace escape error returned")
+	local escape
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Deny")
+	end, function()
+		escape = exec_tool(gp, tool_call("bad", "read", [[{"path":"../escape.txt"}]]), agent)
+	end)
+	assert_true(escape.is_error, "workspace escape can be denied")
+	assert_true(escape.content:match("denied"), "workspace escape denial returned")
 
 	local invalid = exec_tool(gp, tool_call("badjson", "read", "{"), agent)
 	assert_true(invalid.is_error, "invalid JSON args rejected")
@@ -142,29 +147,118 @@ test("default confirmation gates write edit and non-allowlisted run", function()
 	end)
 end)
 
-test("workspace validation covers absolute paths cwd symlinks and workspace override", function()
+test("workspace validation covers confirmed outside paths cwd symlinks and workspace override", function()
 	local agent = gp.get_chat_agent("ToolAgent")
 	local outside = vim.fn.tempname()
 	vim.fn.mkdir(outside, "p")
 	vim.fn.writefile({ "outside content" }, outside .. "/outside.txt")
+	vim.fn.writefile({ "before" }, outside .. "/edit.txt")
 
-	local abs_escape = exec_tool(gp, tool_call("abs", "read", vim.json.encode({ path = outside .. "/outside.txt" })), agent)
-	assert_true(abs_escape.is_error, "absolute path outside workspace rejected")
-	assert_true(abs_escape.content:match("escapes workspace root"), "absolute path escape reports workspace error")
+	local prompts = 0
+	local read_prompt = nil
+	local outside_read
+	with_stub(vim.ui, "select", function(_, opts, cb)
+		prompts = prompts + 1
+		read_prompt = opts.prompt
+		cb("Run once")
+	end, function()
+		outside_read = exec_tool(gp, tool_call("or-confirm", "read", vim.json.encode({ path = outside .. "/outside.txt" })), agent)
+	end)
+	assert_true(not outside_read.is_error, "confirmed outside read succeeds")
+	assert_true(outside_read.content:match("outside content"), "confirmed outside read returns content")
+	assert_eq(prompts, 1, "outside read prompts even though read.confirm=false")
+	assert_true(read_prompt:match("WARNING: requested path is outside workspace"), "outside read prompt warns clearly")
+	assert_true(read_prompt:match("resolved_path: " .. vim.pesc(outside .. "/outside.txt")), "outside read prompt shows resolved path")
 
-	local cwd_escape = exec_tool(gp, tool_call("cwd", "run", vim.json.encode({ cmd = "printf", args = { "x" }, cwd = outside })), agent)
-	assert_true(cwd_escape.is_error, "run cwd outside workspace rejected when workspace_only=true")
-	assert_true(cwd_escape.content:match("escapes workspace root"), "run cwd escape reports workspace error")
+	local denied_write
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Deny")
+	end, function()
+		denied_write = exec_tool(gp, tool_call("ow-deny", "write", vim.json.encode({ path = outside .. "/denied.txt", content = "no" })), agent)
+	end)
+	assert_true(denied_write.is_error, "denied outside write returns error")
+	assert_eq(vim.fn.filereadable(outside .. "/denied.txt"), 0, "denied outside write does not create file")
+
+	local cancelled_edit
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb(nil)
+	end, function()
+		cancelled_edit = exec_tool(gp, tool_call("oe-cancel", "edit", vim.json.encode({
+			path = outside .. "/edit.txt",
+			edits = { { old_text = "before", new_text = "cancelled" } },
+		})), agent)
+	end)
+	assert_true(cancelled_edit.is_error, "cancelled outside edit returns error")
+	assert_eq(vim.fn.readfile(outside .. "/edit.txt")[1], "before", "cancelled outside edit preserves file")
+
+	local allowed_write
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Run once")
+	end, function()
+		allowed_write = exec_tool(gp, tool_call("ow-allow", "write", vim.json.encode({ path = outside .. "/allowed.txt", content = "yes" })), agent)
+	end)
+	assert_true(not allowed_write.is_error, "confirmed outside write succeeds")
+	assert_eq(vim.fn.readfile(outside .. "/allowed.txt")[1], "yes", "confirmed outside write creates file")
+
+	local allowed_edit
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Run once")
+	end, function()
+		allowed_edit = exec_tool(gp, tool_call("oe-allow", "edit", vim.json.encode({
+			path = outside .. "/edit.txt",
+			edits = { { old_text = "before", new_text = "after" } },
+		})), agent)
+	end)
+	assert_true(not allowed_edit.is_error, "confirmed outside edit succeeds")
+	assert_eq(vim.fn.readfile(outside .. "/edit.txt")[1], "after", "confirmed outside edit modifies file")
+
+	local cwd_denied
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Deny")
+	end, function()
+		cwd_denied = exec_tool(gp, tool_call("cwd-deny", "run", vim.json.encode({ cmd = "printf", args = { "x" }, cwd = outside })), agent)
+	end)
+	assert_true(cwd_denied.is_error, "outside run cwd prompts even for allowlisted command and can be denied")
+
+	local cwd_allowed
+	with_stub(vim.ui, "select", function(_, _, cb)
+		cb("Run once")
+	end, function()
+		cwd_allowed = exec_tool(gp, tool_call("cwd-allow", "run", vim.json.encode({ cmd = "pwd", args = {}, cwd = outside })), agent)
+	end)
+	assert_true(cwd_allowed.content:match("exit_code: 0"), "confirmed outside run cwd succeeds")
+	assert_true(cwd_allowed.content:match("stdout:\n" .. vim.pesc(vim.fn.fnamemodify(outside, ":p"):gsub("/$", ""))), "confirmed outside cwd command ran in requested directory")
+
+	local run_open_agent = vim.deepcopy(agent)
+	run_open_agent.tools.run.allowed_commands = { "pwd" }
+	run_open_agent.tools.run.workspace_only = false
+	local run_prompted = false
+	local outside_cwd
+	with_stub(vim.ui, "select", function()
+		run_prompted = true
+	end, function()
+		outside_cwd = exec_tool(gp, tool_call("cwd-open", "run", vim.json.encode({ cmd = "pwd", args = {}, cwd = outside })), run_open_agent)
+	end)
+	assert_true(not run_prompted, "tools.run.workspace_only=false avoids outside cwd confirmation for allowlisted command")
+	assert_true(outside_cwd.content:match("exit_code: 0"), "tools.run.workspace_only=false allows outside cwd")
+	assert_true(outside_cwd.content:match("stdout:\n" .. vim.pesc(vim.fn.fnamemodify(outside, ":p"):gsub("/$", ""))), "outside cwd command ran without prompt")
 
 	local open_agent = vim.deepcopy(agent)
 	open_agent.tools.workspace_only = false
 	open_agent.tools.run.allowed_commands = { "pwd" }
-	local outside_read = exec_tool(gp, tool_call("or", "read", vim.json.encode({ path = outside .. "/outside.txt" })), open_agent)
-	assert_true(not outside_read.is_error, "workspace_only=false allows controlled outside read")
-	assert_true(outside_read.content:match("outside content"), "outside read returns content")
-	local outside_cwd = exec_tool(gp, tool_call("oc", "run", vim.json.encode({ cmd = "pwd", args = {}, cwd = outside })), open_agent)
-	assert_true(outside_cwd.content:match("exit_code: 0"), "workspace_only=false allows outside cwd")
-	assert_true(outside_cwd.content:match("stdout:\n" .. vim.pesc(vim.fn.fnamemodify(outside, ":p"):gsub("/$", ""))), "outside cwd command ran in requested directory")
+	local open_prompted = false
+	local globally_open_read
+	with_stub(vim.ui, "select", function()
+		open_prompted = true
+	end, function()
+		globally_open_read = exec_tool(gp, tool_call("or", "read", vim.json.encode({ path = outside .. "/outside.txt" })), open_agent)
+	end)
+	assert_true(not open_prompted, "workspace_only=false keeps outside read confirmation-free")
+	assert_true(not globally_open_read.is_error, "workspace_only=false allows controlled outside read")
+	assert_true(globally_open_read.content:match("outside content"), "outside read returns content")
+	local globally_open_cwd = exec_tool(gp, tool_call("oc", "run", vim.json.encode({ cmd = "pwd", args = {}, cwd = outside })), open_agent)
+	assert_true(globally_open_cwd.content:match("exit_code: 0"), "workspace_only=false allows outside cwd")
+	assert_true(globally_open_cwd.content:match("stdout:\n" .. vim.pesc(vim.fn.fnamemodify(outside, ":p"):gsub("/$", ""))), "outside cwd command ran in requested directory")
 
 	local uv = vim.uv or vim.loop
 	local link = workspace .. "/outside-link.txt"
@@ -172,10 +266,16 @@ test("workspace validation covers absolute paths cwd symlinks and workspace over
 		uv.fs_symlink(outside .. "/outside.txt", link)
 	end)
 	if ok and vim.fn.filereadable(link) == 1 then
-		local symlink_read = exec_tool(gp, tool_call("sl", "read", [[{"path":"outside-link.txt"}]]), agent)
-		assert_true(symlink_read.is_error, "symlink to outside workspace rejected")
-		local symlink_write = exec_tool(gp, tool_call("sw", "write", [[{"path":"outside-link.txt","content":"bad","overwrite":true}]]), agent)
-		assert_true(symlink_write.is_error, "write through existing outside symlink rejected")
+		local symlink_prompt = nil
+		local symlink_read
+		with_stub(vim.ui, "select", function(_, opts, cb)
+			symlink_prompt = opts.prompt
+			cb("Deny")
+		end, function()
+			symlink_read = exec_tool(gp, tool_call("sl", "read", [[{"path":"outside-link.txt"}]]), agent)
+		end)
+		assert_true(symlink_read.is_error, "symlink to outside workspace requires confirmation and can be denied")
+		assert_true(symlink_prompt:match("resolved_path: " .. vim.pesc(outside .. "/outside.txt")), "symlink prompt resolves outside target")
 	else
 		print("skip - symlink escape fixture unsupported")
 	end
@@ -228,6 +328,11 @@ test("path helpers reject NUL bytes and discover git or cwd workspace roots", fu
 	local resolved, err = path_tools.resolve(nul_path, { workspace_root = workspace }, false)
 	assert_eq(resolved, nil, "NUL path does not resolve")
 	assert_true(err:match("NUL byte"), "NUL path rejection explains cause")
+	local outside_info = assert(path_tools.inspect("../outside.txt", { workspace_root = workspace }, false))
+	assert_true(outside_info.outside, "path inspect detects outside workspace without rejecting")
+	resolved, err = path_tools.resolve("../outside.txt", { workspace_root = workspace }, false)
+	assert_eq(resolved, nil, "path resolve still rejects outside workspace by default")
+	assert_true(err:match("escapes workspace root"), "path resolve keeps escape error")
 
 	local git_parent = vim.fn.tempname()
 	local git_root = git_parent .. "/repo"
