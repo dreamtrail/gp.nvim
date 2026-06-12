@@ -19,6 +19,9 @@ temp/
 *.swp
 *.swo
 
+# Local planning artifacts
+docs/.plan/
+
 # Neovim/headless test artifacts
 .nvimlog
 shada
