@@ -75,10 +75,10 @@ These modules attach functions back onto the main `gp` table to preserve compati
 Built-in tool helpers live under `lua/gp/tools/`:
 
 - `builtin.lua`: `read`, `write`, `edit`, and `run` tool specs and handlers;
-- `path.lua`: workspace root resolution and path containment checks;
+- `path.lua`: workspace root resolution, outside-workspace inspection, and path containment checks;
 - `process.lua`: bounded libuv process execution for the `run` tool.
 
-Native tools are chat-only in the MVP. Tool call/result markdown blocks are user-visible/auditable but not a structured replay contract. Historical markdown blocks are intentionally kept as plain transcript text when chats are reopened because saved chats are editable and current blocks do not carry provenance or stable replay metadata.
+Native tools are chat-only in the MVP. `workspace_only = true` means no silent outside-workspace access: outside `read`/`write`/`edit` paths and default outside `run.cwd` require per-call confirmation, while `tools.run.workspace_only = false` can relax cwd checks for trusted allowlisted commands only. Tool call/result markdown blocks are user-visible/auditable but not a structured replay contract. Historical markdown blocks are intentionally kept as plain transcript text when chats are reopened because saved chats are editable and current blocks do not carry provenance or stable replay metadata.
 
 ### `lua/gp/dispatcher.lua`
 
@@ -135,4 +135,4 @@ Repository-local instructions are read from `.gp.md` at the Git root when presen
 
 `doc/gp.nvim.txt` is generated from `README.md` by `.github/workflows/docgen.yml` using `panvimdoc`. Do not hand-edit generated vimdoc unless there is no viable alternative; update README/source docs instead and let CI regenerate vimdoc.
 
-The README is intentionally a quick-start and overview after the size-hygiene split. Extracted markdown docs such as `docs/USAGE.md`, `docs/SHORTCUTS.md`, and `docs/EXTENDING.md` remain maintainer/user markdown references only unless the docgen workflow is explicitly expanded to include them.
+The README is intentionally a concise practical quick-start. Extracted markdown docs such as `docs/USAGE.md`, `docs/SHORTCUTS.md`, and `docs/EXTENDING.md` remain detailed user/maintainer references only unless the docgen workflow is explicitly expanded to include them.

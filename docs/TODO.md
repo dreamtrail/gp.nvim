@@ -4,10 +4,13 @@ Canonical task list for this maintained fork. Keep NEXT ordered by priority. Mov
 
 ## NEXT
 
-- [P-20260610-01] Choose the next maintenance priority for the fork.
+- [P-20260612-03] Choose the next maintenance priority for the fork.
 
 ## DONE
 
+- [P-20260612-02] Rewrite user and maintainer docs for current fork behavior — DONE 2026-06-12 14:24 +0900
+- [P-20260612-01] Allow confirmed outside-workspace native tool access — DONE 2026-06-12 14:24 +0900
+- [P-20260610-01] Choose documentation refresh as the next maintenance priority — DONE 2026-06-12 14:24 +0900
 - [P-20260608-11] Add native tool adapters for Anthropic and Google providers — DEFERRED 2026-06-10 01:08 +0900
 - [P-20260608-10] Evaluate structured replay for historical markdown tool blocks — DONE 2026-06-10 00:53 +0900
 - [P-20260608-09] Split large files identified by size hygiene (`README.md`, `lua/gp/init.lua`, `tests/run.lua`) — DONE 2026-06-09 23:14 +0900

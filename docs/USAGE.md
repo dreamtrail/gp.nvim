@@ -67,13 +67,15 @@ Example tool-enabled agent:
         workspace_only = true,
         -- streamed tool-use is on by default; set false for compatibility
         stream = true,
-        -- read runs automatically by default
         write = { confirm = true },
         edit = { confirm = true },
         run = {
-            -- allowed commands bypass confirmation; all others ask first.
+            -- exact command strings bypass normal run confirmation.
             -- Path commands like /usr/bin/make need exact allowlist entries.
             allowed_commands = { "make", "npm", "pytest" },
+            -- set false to allow allowlisted commands to use cwd outside
+            -- the workspace without an extra outside-workspace prompt.
+            workspace_only = true,
         },
     },
 }
@@ -82,16 +84,19 @@ Example tool-enabled agent:
 Safety notes:
 
 - Tools work in chat sessions only for the MVP.
-- Tools currently use OpenAI-compatible tool-calling payloads; Anthropic/Google native tool formats are not implemented yet.
+- Tools currently use OpenAI-compatible tool-calling payloads. Anthropic/Google native tool formats are intentionally deferred for now because the OpenAI-compatible path covers the current local-provider workflow.
 - Tool-enabled chats stream OpenAI-compatible tool-use rounds by default; set `tools.stream = false` per agent to use the previous non-streaming path.
 - During streamed tool-call rounds, tool-call argument chunks are collected without being shown as assistant text; final no-tool assistant responses stream into the chat.
 - If a tool-enabled agent uses a provider without native tool support, gp.nvim warns once and falls back to a normal non-streaming chat request without tool schemas.
-- `workspace_only = true` is the default; set it to `false` only for trusted/local models.
-- `write`, `edit`, and non-allowlisted `run` calls ask for confirmation by default.
+- `workspace_only = true` is the default and means no silent outside-workspace access.
+- With `workspace_only = true`, outside-workspace `read`, `write`, and `edit` paths require explicit per-call confirmation even when that tool's normal `confirm` option is `false`.
+- Outside-workspace `run.cwd` also requires per-call confirmation by default, even for allowlisted commands; set `tools.run.workspace_only = false` if allowlisted commands may run outside the workspace without that extra prompt.
+- Set top-level `tools.workspace_only = false` only for trusted/local models that may access outside paths without per-call outside-workspace confirmation.
+- `write`, `edit`, and non-allowlisted `run` calls ask for normal confirmation by default.
 - `run.allowed_commands` matches exact command strings; bare commands like `make` can be allowlisted by name, while path commands like `/usr/bin/make` bypass confirmation only when that exact path is allowlisted.
 - Model-provided `run.timeout_ms` is capped by the configured `tools.run.timeout_ms` maximum.
 - `:GpTools` shows the effective safety config for the current chat agent, including confirmation, allowlist, size, timeout, and workspace settings.
-- Tool call/result blocks are visible in chat files for auditability, but old blocks are not replayed as structured tool messages.
+- Tool call/result blocks are visible in chat files for auditability, but old blocks are intentionally not replayed as structured tool messages. Replaying editable markdown as provider-native tool output is deferred until a safer opt-in format with provenance/versioning exists.
 - `@command(...)` remains human prompt preprocessing and is separate from native tools.
 
 ## Text/Code commands
@@ -260,7 +265,7 @@ Use Early return/Guard Clauses pattern to avoid excessive nesting.
 ...
 ```
 
-Here is [another example](https://github.com/Robitx/gp.nvim/blob/main/.gp.md).
+Here is [another example](https://github.com/dreamtrail/gp.nvim/blob/main/.gp.md).
 
 ## Scripting
 

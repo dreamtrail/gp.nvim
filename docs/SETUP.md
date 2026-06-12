@@ -68,4 +68,4 @@ Generated vimdoc lives at `doc/gp.nvim.txt`. It is produced from README by `.git
 
 ## Current test setup
 
-No formal test suite or test runner configuration is currently present in this repository. See `docs/TESTING.md` for recommended validation steps before committing changes.
+This repository has a minimal headless Neovim characterization harness invoked by `./scripts/test.sh`. It is not a comprehensive suite, but it covers core setup/command contracts, dispatcher payload behavior, chat tool loops, and native tool safety paths. See `docs/TESTING.md` for when to run it and for documentation-only validation steps.

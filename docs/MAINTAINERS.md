@@ -31,12 +31,13 @@ For documentation changes:
 
 `.github/workflows/docgen.yml` performs two documentation tasks:
 
-1. synchronizes the README config snippet from `lua/gp/config.lua` between `README_REFERENCE_MARKER_START` and `README_REFERENCE_MARKER_END`;
+1. updates the README default-config permalink from the marker range in `lua/gp/config.lua`;
 2. runs `panvimdoc` to generate `doc/gp.nvim.txt` from README.
 
 Because of that workflow:
 
 - keep the canonical default config comments in `lua/gp/config.lua` accurate;
+- keep `<!-- README_REFERENCE_MARKER_REPLACE_NEXT_LINE -->` in README if the workflow remains enabled;
 - do not treat `doc/gp.nvim.txt` as the source of truth;
 - expect README-only changes to create vimdoc drift locally until CI or a maintainer regenerates it.
 
@@ -73,6 +74,6 @@ When adding or changing providers:
 
 ## Current testing reality
 
-There is no formal automated test suite in this repository at the time of writing. Maintainers should use the validation guidance in `docs/TESTING.md` and avoid overstating test coverage.
+This repository has a minimal headless Neovim characterization harness invoked by `./scripts/test.sh`. It is useful for plugin setup contracts, dispatcher payload behavior, chat tool loops, and native tool safety paths, but it is not a comprehensive integration suite.
 
-If a test suite is added later, update `docs/TESTING.md`, this guide, and any contributor instructions in README at the same time.
+Maintainers should use the validation guidance in `docs/TESTING.md`, add focused coverage for behavior changes, and avoid overstating test coverage. If the harness scope changes materially, update `docs/TESTING.md`, this guide, and contributor setup notes at the same time.

@@ -1,8 +1,8 @@
 # Testing and Validation
 
-This repository includes a minimal headless Neovim characterization test harness invoked by `scripts/test.sh`. `tests/run.lua` is the runner, `tests/support.lua` provides shared fixtures/helpers, and grouped specs live under `tests/spec/`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, and representative dispatcher payload behavior.
+This repository includes a minimal headless Neovim characterization test harness invoked by `scripts/test.sh`. `tests/run.lua` is the runner, `tests/support.lua` provides shared fixtures/helpers, and grouped specs live under `tests/spec/`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, representative dispatcher payload behavior, chat tool-loop orchestration, and native tool safety paths.
 
-It is not a comprehensive unit/integration test suite. Use the checks below to validate changes according to their scope, and add focused characterization coverage when refactoring core behavior.
+It is not a comprehensive unit/integration test suite. Use the checks below to validate changes according to their scope, and add focused characterization coverage when changing core behavior.
 
 ## Documentation-only changes
 
@@ -14,22 +14,29 @@ git diff --stat
 git diff -- README.md docs/
 ```
 
-Check README links to local docs:
+Check README/docs links to local files:
 
 ```sh
 python3 - <<'PY'
 from pathlib import Path
 import re
-text = Path('README.md').read_text()
+files = [Path('README.md'), *Path('docs').glob('*.md')]
 missing = []
-for link in re.findall(r'\[[^\]]+\]\((docs/[^)#]+)', text):
-    if not Path(link).exists():
-        missing.append(link)
+for file in files:
+    text = file.read_text()
+    for link in re.findall(r'\[[^\]]+\]\(([^)#]+)', text):
+        if re.match(r'^[a-z]+:', link) or link.startswith('#'):
+            continue
+        target = (file.parent / link).resolve() if not link.startswith('/') else Path(link)
+        if not target.exists():
+            missing.append(f'{file}: {link}')
 if missing:
-    raise SystemExit('Missing README docs links: ' + ', '.join(missing))
-print('README docs links OK')
+    raise SystemExit('Missing local markdown links:\n' + '\n'.join(missing))
+print('local markdown links OK')
 PY
 ```
+
+For README rewrites, also search for removed or stale section names and old behavior descriptions relevant to the change.
 
 ## Headless characterization tests
 
@@ -125,7 +132,9 @@ The committed tests should cover:
 - unsupported native-tool provider fallback to non-streaming requests without OpenAI tool schemas;
 - visible tool call/result blocks in chat buffers;
 - built-in `read`, `write`, `edit`, and `run` behavior in temporary workspaces;
-- confirmation allow/deny paths by stubbing `vim.ui.select`.
+- confirmation allow/deny paths by stubbing `vim.ui.select`;
+- outside-workspace confirmation for `read`, `write`, `edit`, and default `run.cwd` when `workspace_only=true`;
+- `tools.run.workspace_only=false` allowing allowlisted commands to use outside `cwd` without the extra outside-workspace prompt.
 
 Manual validation for trusted local setups:
 

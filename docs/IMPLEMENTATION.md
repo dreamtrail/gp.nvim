@@ -69,7 +69,7 @@ Main modules:
 
 - `lua/gp/tools.lua`: registry, schema export, `:GpTools`, confirmation policy, and sequential execution of multiple tool calls.
 - `lua/gp/tools/builtin.lua`: built-in `read`, `write`, `edit`, and `run` implementations.
-- `lua/gp/tools/path.lua`: workspace root resolution and path containment checks.
+- `lua/gp/tools/path.lua`: workspace root resolution, outside-workspace inspection, and path containment checks.
 - `lua/gp/tools/process.lua`: bounded libuv process execution for `run`.
 
 A tool-enabled chat response follows this loop:
@@ -190,6 +190,6 @@ Image secrets are stored in `vault` under `imager_secret`.
 
 ## Generated docs
 
-The README configuration snippet is bounded by `README_REFERENCE_MARKER_START` and `README_REFERENCE_MARKER_END` in `lua/gp/config.lua`. CI uses that range to update `README.md`, then uses `panvimdoc` to regenerate `doc/gp.nvim.txt`.
+The README default-config permalink is updated from the marker range in `lua/gp/config.lua` for CI compatibility, and `.github/workflows/docgen.yml` can use `panvimdoc` to regenerate `doc/gp.nvim.txt` from README.
 
-After the size-hygiene documentation split, generated vimdoc intentionally reflects the README quick-start/overview. Extracted docs such as `docs/USAGE.md`, `docs/SHORTCUTS.md`, and `docs/EXTENDING.md` remain markdown-only unless `.github/workflows/docgen.yml` is expanded to include them.
+After the documentation refresh, generated vimdoc intentionally reflects the concise README quick-start. Extracted docs such as `docs/USAGE.md`, `docs/SHORTCUTS.md`, and `docs/EXTENDING.md` remain markdown-only detailed references unless `.github/workflows/docgen.yml` is expanded to include them.

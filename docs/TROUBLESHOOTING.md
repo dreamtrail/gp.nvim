@@ -147,32 +147,37 @@ Fixes:
 - if a local/OpenAI-compatible provider has trouble with streamed tool calls, set `tools.stream = false` on that agent to use the non-streaming path;
 - remember that native tools are chat-only and do not run for `GpRewrite`, `GpAppend`, or other prompt commands.
 
-## Tool path is rejected
+## Tool path needs confirmation or is rejected
 
 Symptoms:
 
-- tool result contains `ERROR: path escapes workspace root`;
-- `read`, `write`, or `edit` cannot access a path outside the current workspace.
+- gp.nvim opens a confirmation dialog warning that a requested path is outside the workspace;
+- tool result contains `ERROR: tool execution denied by user` after denying or cancelling that dialog;
+- tool result contains `ERROR: path escapes workspace root` for invalid or unconfirmed path resolution;
+- `read`, `write`, or `edit` cannot silently access a path outside the current workspace.
 
 Fixes:
 
-- use paths relative to the workspace root;
+- use paths relative to the workspace root when the model does not need outside files;
+- choose `Run once` only when you explicitly want that single outside-workspace `read`, `write`, or `edit` call to proceed;
 - check Neovim's current working directory with `:pwd`;
 - set `tools.workspace_root` in the agent config if the inferred root is wrong;
-- set `tools.workspace_only = false` only for trusted/local models.
+- set top-level `tools.workspace_only = false` only for trusted/local models that may access outside paths without per-call outside-workspace confirmation.
 
 ## Tool command is denied or times out
 
 Symptoms:
 
 - `run` returns `ERROR: tool execution denied by user`;
+- gp.nvim asks for confirmation because `run.cwd` is outside the workspace;
 - `run` returns `timed_out: true`;
 - `run` stderr says the command failed to start.
 
 Fixes:
 
-- choose `Run once` in the confirmation dialog for non-allowlisted commands;
+- choose `Run once` in the confirmation dialog for non-allowlisted commands or outside-workspace `cwd`;
 - add trusted commands to `tools.run.allowed_commands` for that agent; entries match exact command strings, so `/usr/bin/make` needs an exact `/usr/bin/make` entry rather than just `make`;
+- set `tools.run.workspace_only = false` if allowlisted commands may run with `cwd` outside the workspace without the extra outside-workspace prompt;
 - pass command arguments as `args = { ... }`, not through `bash -c`;
 - increase `tools.run.timeout_ms` if a trusted command needs more time; model-requested timeouts are capped by this configured maximum.
 

@@ -4,13 +4,14 @@ This roadmap is a high-level guide. The canonical task list is `docs/TODO.md`.
 
 ## Current Focus
 
-- Choose the next maintenance priority after completing the native tools milestone.
+- Choose the next maintenance priority after refreshing user-facing fork documentation.
 - Keep the refactored facade architecture maintainable as provider support evolves.
+- Watch for user feedback on native tool safety, especially per-call outside-workspace confirmations.
 
 ## Near Term
 
 - Broader provider compatibility testing for OpenAI-compatible local servers.
-- Watch for user feedback on streamed native tool-use and safety defaults.
+- Keep README as a concise quick-start and `docs/USAGE.md` as the detailed user reference when behavior changes.
 - Triage remaining >500 LOC modules if future work touches them.
 
 ## Later
@@ -29,5 +30,7 @@ This roadmap is a high-level guide. The canonical task list is `docs/TODO.md`.
 - Size-hygiene split for README, facade, and tests.
 - Structured replay evaluation and defer decision.
 - Anthropic/Google native tool adapter defer decision.
+- Confirmed outside-workspace native tool access.
+- User-focused README and documentation refresh.
 - Dispatcher status timer crash hotfix.
 - Chat newline formatting hotfix.
