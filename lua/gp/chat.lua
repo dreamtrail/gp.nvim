@@ -2,6 +2,17 @@
 -- Chat buffer lifecycle helpers and commands.
 --------------------------------------------------------------------------------
 
+local storage = require("gp.chat.storage")
+
+local path_is_under = function(base, path)
+	if not base or not path or base == "" or path == "" then
+		return false
+	end
+	base = vim.fn.resolve(vim.fn.fnamemodify(base, ":p")):gsub("[\\/]$", "")
+	path = vim.fn.resolve(vim.fn.fnamemodify(path, ":p")):gsub("[\\/]$", "")
+	return path == base or path:sub(1, #base + 1) == base .. "/" or path:sub(1, #base + 1) == base .. "\\"
+end
+
 local M = {}
 
 M.setup = function(gp)
@@ -175,7 +186,8 @@ M.setup = function(gp)
 	gp.new_chat = function(params, toggle, system_prompt, agent)
 		gp._toggle_close(gp._toggle_kind.popup)
 
-		local filename = gp.config.chat_dir .. "/" .. gp.logger.now() .. ".md"
+		local filename, parent = storage.timestamp_path(gp.config.chat_dir, gp.logger.now())
+		vim.fn.mkdir(parent, "p")
 
 		-- encode as json if model is a table
 		local model = ""
@@ -335,7 +347,7 @@ M.setup = function(gp)
 		local file_name = vim.api.nvim_buf_get_name(buf)
 
 		-- check if file is in the chat dir
-		if not gp.helpers.starts_with(file_name, vim.fn.resolve(gp.config.chat_dir)) then
+		if not path_is_under(gp.config.chat_dir, file_name) then
 			gp.logger.warning("File " .. vim.inspect(file_name) .. " is not in chat dir")
 			return
 		end

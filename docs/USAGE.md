@@ -4,7 +4,7 @@
 
 #### `:GpChatNew` <!-- {doc=:GpChatNew}  -->
 
-Open a fresh chat in the current window. It can be either empty or include the visual selection or specified range as context. This command also supports subcommands for layout specification:
+Open a fresh chat in the current window. New chats are stored under `chat_dir/YYYY/MM/` using timestamp filenames. The command can be either empty or include the visual selection or specified range as context. This command also supports subcommands for window layout specification:
 
 - `:GpChatNew vsplit` Open a fresh chat in a vertical split window.
 - `:GpChatNew split` Open a fresh chat in a horizontal split window.
@@ -31,7 +31,18 @@ Open chat in a toggleable popup window, showing the last active chat or a fresh 
 
 #### `:GpChatFinder` <!-- {doc=:GpChatFinder}  -->
 
-Open a dialog to search through chats.
+Open a dialog to list, search, preview, open, or delete saved chats in the canonical `chat_dir/YYYY/MM/*.md` layout. The default view is a fast metadata listing and does not full-text scan every chat. Custom search queries search only canonical year/month chats.
+
+Legacy root-level chats in `chat_dir/*.md` are ignored by the finder until they are explicitly migrated.
+
+#### `:GpChatMigrate` <!-- {doc=:GpChatMigrate}  -->
+
+Inspect or migrate legacy root-level chat files into the canonical year/month layout used by `:GpChatFinder`.
+
+- `:GpChatMigrate` or `:GpChatMigrate dry-run` reports how many legacy flat chats can move and how many are skipped.
+- `:GpChatMigrate apply` asks for confirmation, then moves eligible chat-shaped timestamp files into `chat_dir/YYYY/MM/` without overwriting conflicts.
+
+Migration is explicit and idempotent. It does not inspect open buffers; close legacy chat buffers before applying migration. Directly opened flat chats and an existing `last_chat` path continue to work while the flat file exists, but flat chats do not appear in finder until migrated.
 
 #### `:GpChatRespond` <!-- {doc=:GpChatRespond}  -->
 

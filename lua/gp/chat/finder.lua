@@ -2,11 +2,42 @@
 -- Chat finder UI.
 --------------------------------------------------------------------------------
 
+local storage = require("gp.chat.storage")
+
 local M = {}
 
 M.setup = function(gp)
 	local M = gp
 M._chat_finder_opened = false
+M._chat_finder_collect = function(dir, cmd, default_pattern)
+	local results = {}
+	local re = ""
+	if storage.is_default_finder_query(cmd, default_pattern) then
+		for _, chat in ipairs(storage.list_canonical_chats(dir)) do
+			table.insert(results, {
+				path = chat.path,
+				relative = chat.relative,
+				lnum = 1,
+				line = chat.topic,
+			})
+		end
+	else
+		results, re = storage.search_canonical_chats(dir, cmd)
+	end
+
+	local files = {}
+	local preview_lines = {}
+	local picker_lines = {}
+	for _, f in ipairs(results) do
+		if f.line:len() > 0 then
+			table.insert(files, f.path)
+			table.insert(preview_lines, tonumber(f.lnum))
+			table.insert(picker_lines, string.format("%s:%s %s", f.relative, f.lnum, f.line))
+		end
+	end
+	return { files = files, preview_lines = preview_lines, picker_lines = picker_lines, regex = re }
+end
+
 M.cmd.ChatFinder = function()
 	if M._chat_finder_opened then
 		M.logger.warning("Chat finder is already open")
@@ -75,9 +106,15 @@ M.cmd.ChatFinder = function()
 	local picker_match_id = 0
 	local preview_match_id = 0
 	local regex = ""
+	local search_timer = nil
+	local request_id = 0
 
 	-- clean up augroup and popup buffers/windows
 	local close = M.tasker.once(function()
+		if search_timer and not search_timer:is_closing() then
+			search_timer:stop()
+			search_timer:close()
+		end
 		vim.api.nvim_del_augroup_by_id(gid)
 		picker_close()
 		preview_close()
@@ -147,35 +184,39 @@ M.cmd.ChatFinder = function()
 	local refresh_picker = function()
 		-- get last line of command buffer
 		local cmd = vim.api.nvim_buf_get_lines(command_buf, -2, -1, false)[1]
+		request_id = request_id + 1
+		local token = request_id
 
-		M.tasker.grep_directory(nil, dir, cmd, function(results, re)
-			if not vim.api.nvim_buf_is_valid(picker_buf) then
-				return
+		local collected = M._chat_finder_collect(dir, cmd, M.config.chat_finder_pattern)
+		if token ~= request_id or not vim.api.nvim_buf_is_valid(picker_buf) then
+			return
+		end
+		picker_files = collected.files
+		preview_lines = collected.preview_lines
+		vim.api.nvim_buf_set_lines(picker_buf, 0, -1, false, collected.picker_lines)
+		regex = collected.regex
+		if regex ~= "" then
+			regex = "\\c" .. regex
+		end
+		refresh()
+	end
+
+	local schedule_refresh_picker = function()
+		if search_timer and not search_timer:is_closing() then
+			search_timer:stop()
+			search_timer:close()
+		end
+		search_timer = (vim.uv or vim.loop).new_timer()
+		search_timer:start(120, 0, vim.schedule_wrap(function()
+			if search_timer and not search_timer:is_closing() then
+				search_timer:close()
 			end
-
-			picker_files = {}
-			preview_lines = {}
-			local picker_lines = {}
-			for _, f in ipairs(results) do
-				if f.line:len() > 0 then
-					table.insert(picker_files, dir .. "/" .. f.file)
-					local fline = string.format("%s:%s %s", f.file:sub(3, -11), f.lnum, f.line)
-					table.insert(picker_lines, fline)
-					table.insert(preview_lines, tonumber(f.lnum))
-				end
+			search_timer = nil
+			if vim.api.nvim_win_is_valid(picker_win) then
+				vim.api.nvim_win_set_cursor(picker_win, { 1, 0 })
 			end
-
-			vim.api.nvim_buf_set_lines(picker_buf, 0, -1, false, picker_lines)
-
-			-- prepare regex for highlighting
-			regex = re
-			if regex ~= "" then
-				-- case insensitive
-				regex = "\\c" .. regex
-			end
-
-			refresh()
-		end)
+			refresh_picker()
+		end))
 	end
 
 	refresh_picker()
@@ -211,8 +252,7 @@ M.cmd.ChatFinder = function()
 
 	-- when command buffer is written, execute it
 	M.helpers.autocmd({ "TextChanged", "TextChangedI", "TextChangedP", "TextChangedT" }, { command_buf }, function()
-		vim.api.nvim_win_set_cursor(picker_win, { 1, 0 })
-		refresh_picker()
+		schedule_refresh_picker()
 	end, gid)
 
 	-- close on buffer delete

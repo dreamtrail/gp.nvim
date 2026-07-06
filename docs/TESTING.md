@@ -1,6 +1,6 @@
 # Testing and Validation
 
-This repository includes a minimal headless Neovim characterization test harness invoked by `scripts/test.sh`. `tests/run.lua` is the runner, `tests/support.lua` provides shared fixtures/helpers, and grouped specs live under `tests/spec/`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, representative dispatcher payload behavior, chat tool-loop orchestration, and native tool safety paths.
+This repository includes a minimal headless Neovim characterization test harness invoked by `scripts/test.sh`. `tests/run.lua` is the runner, `tests/support.lua` provides shared fixtures/helpers, and grouped specs live under `tests/spec/`. The harness currently covers plugin loading/setup, command registration, public compatibility aliases, chat storage/migration behavior, representative dispatcher payload behavior, chat tool-loop orchestration, and native tool safety paths.
 
 It is not a comprehensive unit/integration test suite. Use the checks below to validate changes according to their scope, and add focused characterization coverage when changing core behavior.
 
@@ -85,7 +85,6 @@ Expected checks include whether:
 - `require('gp')` succeeds;
 - `require('gp').setup()` has been called;
 - `curl` is installed;
-- `grep` is installed;
 - Whisper dependencies/config are usable if Whisper is enabled;
 - deprecated config options are reported.
 
@@ -98,6 +97,8 @@ Suggested smoke paths:
 - `:GpInspectPlugin` opens plugin state without exposing secrets in normal logs;
 - `:GpContext` creates/opens `.gp.md` at the Git root;
 - `:GpChatNew`, `:GpChatToggle`, and `:GpChatDelete` handle chat files as expected;
+- `:GpChatFinder` lists/searches only `chat_dir/YYYY/MM/*.md` chats and ignores root-level legacy chats;
+- `:GpChatMigrate` dry-runs by default and `:GpChatMigrate apply` confirms before moving legacy flat chats;
 - `:GpAgent` and `:GpNextAgent` switch among valid agents;
 - one prompt target such as `:GpPopup` or `:GpEnew` works with a configured provider.
 
@@ -122,7 +123,7 @@ For native tool changes, run the headless harness and add provider-free coverage
 
 The committed tests should cover:
 
-- exact `Gp*` command snapshots, including `GpTools`;
+- exact `Gp*` command snapshots, including `GpTools` and `GpChatMigrate`;
 - default agents remaining tool-disabled;
 - OpenAI-compatible payloads receiving native tool schemas only when tools are enabled;
 - Anthropic/Google payloads not receiving OpenAI tool schemas;

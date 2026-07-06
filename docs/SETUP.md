@@ -8,7 +8,6 @@ Required for the core plugin:
 
 - Neovim with Lua support;
 - `curl` for provider API calls;
-- `grep` for chat finder/search behavior;
 - Git for repository-local context discovery and normal development.
 
 Optional features:

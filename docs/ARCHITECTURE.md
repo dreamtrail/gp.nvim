@@ -1,6 +1,6 @@
 # Architecture
 
-This repository is a maintained fork of `gp.nvim`, continued after upstream development slowed/stopped. The plugin is a Lua-only Neovim plugin that keeps runtime dependencies small: Neovim, `curl`, `grep`, and optional audio tooling for Whisper.
+This repository is a maintained fork of `gp.nvim`, continued after upstream development slowed/stopped. The plugin is a Lua-only Neovim plugin that keeps runtime dependencies small: Neovim, `curl`, and optional audio tooling for Whisper.
 
 ## Repository layout
 
@@ -15,6 +15,8 @@ This repository is a maintained fork of `gp.nvim`, continued after upstream deve
 │   ├── agents.lua         # Agent selection, lookup, and command handlers
 │   ├── chat.lua           # Chat buffer lifecycle and chat file commands
 │   ├── chat/finder.lua    # Chat finder popup UI
+│   ├── chat/storage.lua   # Chat path, discovery, search, and migration helpers
+│   ├── chat/migration.lua # Explicit legacy flat-chat migration command
 │   ├── chat/respond.lua   # Chat parsing and response orchestration
 │   ├── context.lua        # Repository `.gp.md` context command/helpers
 │   ├── tools.lua          # Native chat tool registry and `GpTools` command
@@ -59,8 +61,10 @@ Important responsibilities:
 
 The chat lifecycle is split out of the facade:
 
-- `lua/gp/chat.lua` owns chat detection, chat buffer preparation, chat creation/toggle/paste/delete commands, and chat buffer autocommands.
-- `lua/gp/chat/finder.lua` owns the chat finder popup, search input, preview pane, delete shortcut, and open/toggle shortcuts.
+- `lua/gp/chat.lua` owns chat detection, chat buffer preparation, chat creation/toggle/paste/delete commands, and chat buffer autocommands. New chat files are created under `chat_dir/YYYY/MM/`.
+- `lua/gp/chat/storage.lua` owns canonical chat path construction, year/month discovery, canonical-only search, and legacy flat-chat migration helpers.
+- `lua/gp/chat/finder.lua` owns the chat finder popup, search input, preview pane, delete shortcut, and open/toggle shortcuts. It discovers/searches canonical `YYYY/MM/*.md` chats; root-level legacy chats are ignored until migrated.
+- `lua/gp/chat/migration.lua` owns `GpChatMigrate`, the explicit dry-run/apply command for moving chat-shaped root-level timestamp chats into year/month folders.
 - `lua/gp/chat/respond.lua` parses markdown chat transcripts, builds messages, expands human-authored `@command(...)` prompt snippets, dispatches provider requests, runs OpenAI-compatible native tool loops for tool-enabled chat agents, and appends follow-up prompts/topic updates.
 - `lua/gp/context.lua` owns `.gp.md` repository instructions and the `GpContext` command.
 - `lua/gp/ui/toggle.lua` owns shared popup/chat/context toggle state.
@@ -124,7 +128,7 @@ The plugin stores runtime data under Neovim standard paths by default:
 - persisted state: `stdpath("data")/gp/persisted`;
 - query cache: `stdpath("cache")/gp/query`;
 - logs: `stdpath("log")/gp.nvim.log`;
-- chats: `stdpath("data")/gp/chats` via `chat_dir`;
+- chats: `stdpath("data")/gp/chats/YYYY/MM/*.md` via `chat_dir`;
 - Whisper recordings and image files use their configured `store_dir` values.
 
 Prompt command outputs are written to the current buffer, new buffers, splits, tabs, or popups rather than a configured output directory.

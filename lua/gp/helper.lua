@@ -197,10 +197,12 @@ _H.delete_file = function(file, callback)
 	-- if file:match("%.md$") then
 	-- 	_H.move_to_trash(file, callback)
 	-- else
-	local success, err_or_nil = pcall(os.remove, file)
+	local success, ok_or_err, err_or_nil = pcall(os.remove, file)
 	local file_name = file:match("([^/\\]+)$")
 	local msg = "Deleted file: " .. file_name
 	if not success then
+		msg = "Error: " .. (ok_or_err or "Unknown error")
+	elseif not ok_or_err then
 		msg = "Error: " .. (err_or_nil or "Unknown error")
 	end
 

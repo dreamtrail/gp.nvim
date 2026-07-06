@@ -24,15 +24,6 @@ Symptom:
 
 Fix: install `curl` with your system package manager. The plugin uses `curl` for chat/completion, transcription, and image requests.
 
-## `grep` is missing
-
-Symptom:
-
-- `:checkhealth gp` reports `grep` is not installed;
-- chat finder/search behavior may not work.
-
-Fix: install `grep` with your system package manager.
-
 ## Whisper or speech commands fail
 
 Symptoms:
@@ -111,6 +102,25 @@ Fixes:
 - ensure the configured Vertex secret command is valid, commonly a `gcloud auth print-access-token` style command;
 - verify `gcloud` is authenticated outside Neovim;
 - ensure Neovim inherits the same PATH and account context.
+
+## Old chats are missing from `:GpChatFinder`
+
+Symptom:
+
+- older chat files exist directly under `chat_dir/*.md`, but `:GpChatFinder` does not list them.
+
+Explanation:
+
+`GpChatFinder` discovers and searches only canonical year/month chats under `chat_dir/YYYY/MM/*.md`. Root-level flat chats are legacy and are ignored until explicitly migrated.
+
+Fix:
+
+```vim
+:GpChatMigrate
+:GpChatMigrate apply
+```
+
+Review the dry-run output first. Close legacy chat buffers before applying migration because migration does not inspect open buffers.
 
 ## Chat file does not look like a chat
 

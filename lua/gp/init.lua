@@ -191,6 +191,7 @@ M.setup = function(opts)
 		ChatNew = { "popup", "split", "vsplit", "tabnew" },
 		ChatPaste = { "popup", "split", "vsplit", "tabnew" },
 		ChatToggle = { "popup", "split", "vsplit", "tabnew" },
+		ChatMigrate = { "dry-run", "apply" },
 		Context = { "popup", "split", "vsplit", "tabnew" },
 		Agent = M.agent_completion,
 	}
@@ -221,5 +222,6 @@ end
 require("gp.state").setup(M)
 require("gp.prompt").setup(M)
 require("gp.chat.finder").setup(M)
+require("gp.chat.migration").setup(M)
 
 return M

@@ -47,8 +47,7 @@ require("gp").setup({})
 Core features require:
 
 - Neovim with Lua support;
-- `curl` for provider requests;
-- `grep` for chat search/finder.
+- `curl` for provider requests.
 
 Optional features:
 
@@ -138,7 +137,8 @@ https://github.com/dreamtrail/gp.nvim/blob/main/lua/gp/config.lua
 | `:GpChatNew` | Open a new markdown chat buffer. |
 | `:GpChatToggle` | Toggle the latest chat in a popup/split/tab target. |
 | `:GpChatRespond` | Ask the selected chat agent to respond in the current chat. |
-| `:GpChatFinder` | Search, preview, open, or delete saved chats. |
+| `:GpChatFinder` | Search, preview, open, or delete saved year/month-layout chats. |
+| `:GpChatMigrate` | Dry-run or apply migration of legacy flat chats into year/month folders. |
 | `:GpRewrite` | Replace the current line/range/selection from a prompt. |
 | `:GpAppend` / `:GpPrepend` | Insert model output after/before the current line/range/selection. |
 | `:GpPopup`, `:GpEnew`, `:GpNew`, `:GpVnew`, `:GpTabnew` | Send prompt output to a popup, new buffer, split, vertical split, or tab. |
@@ -146,6 +146,8 @@ https://github.com/dreamtrail/gp.nvim/blob/main/lua/gp/config.lua
 | `:GpAgent` / `:GpNextAgent` | Inspect or switch active agents. |
 | `:GpTools` | Inspect native chat tool availability and safety settings. |
 | `:GpStop` | Stop active gp.nvim jobs. |
+
+Chats are stored under `chat_dir/YYYY/MM/` for scalable discovery. Legacy root-level chat files are ignored by `:GpChatFinder` until you explicitly migrate them with `:GpChatMigrate apply`; close legacy chat buffers before applying migration.
 
 Full command docs: [Usage](docs/USAGE.md). Shortcut examples: [Shortcuts](docs/SHORTCUTS.md). Hook/API examples: [Extending](docs/EXTENDING.md).
 

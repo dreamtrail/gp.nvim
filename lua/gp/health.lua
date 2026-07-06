@@ -26,12 +26,6 @@ function M.check()
 		vim.health.error("curl is not installed")
 	end
 
-	if vim.fn.executable("grep") == 1 then
-		vim.health.ok("grep is installed")
-	else
-		vim.health.error("grep is not installed")
-	end
-
 	require("gp.whisper").check_health()
 	require("gp.deprecator").check_health()
 end

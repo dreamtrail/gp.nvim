@@ -14,7 +14,7 @@ local env = setmetatable({}, {
 	__newindex = _G,
 })
 
-for _, spec in ipairs({ "core", "dispatcher", "tools", "chat_tools", "chat_basic", "chat_tool_rounds" }) do
+for _, spec in ipairs({ "core", "chat_storage", "dispatcher", "tools", "chat_tools", "chat_basic", "chat_tool_rounds" }) do
 	local chunk = assert(loadfile(root .. "/tests/spec/" .. spec .. ".lua"))
 	setfenv(chunk, env)
 	chunk()

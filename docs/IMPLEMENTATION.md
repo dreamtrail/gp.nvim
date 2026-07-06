@@ -53,9 +53,11 @@ Chats are regular markdown files in the configured chat directory. Chat template
 
 Important chat behavior is split across smaller modules:
 
-- `lua/gp/chat.lua`: `new_chat()` creates the markdown file and opens it in the requested target; `prep_chat()` sets markdown options and buffer-local shortcuts; `ChatDelete` deletes the active chat after optional confirmation.
+- `lua/gp/chat.lua`: `new_chat()` creates the markdown file under `chat_dir/YYYY/MM/` and opens it in the requested target; `prep_chat()` sets markdown options and buffer-local shortcuts; `ChatDelete` deletes the active chat after optional confirmation.
+- `lua/gp/chat/storage.lua`: builds canonical chat paths, lists canonical year/month chats, performs canonical-only search, and plans/applies legacy flat-chat migration.
 - `lua/gp/chat/respond.lua`: `chat_respond()` parses markdown messages into `{ role, content }` records, expands `@command(...)`, orchestrates normal provider calls, and runs the native tool loop for tool-enabled OpenAI-compatible chat agents.
-- `lua/gp/chat/finder.lua`: `ChatFinder` searches existing chat files, previews matches, supports deletion, and opens selected chats in the requested target.
+- `lua/gp/chat/finder.lua`: `ChatFinder` lists/searches canonical year/month chat files, previews matches, supports deletion, and opens selected chats in the requested target. Root-level legacy chats are ignored until explicitly migrated.
+- `lua/gp/chat/migration.lua`: registers `GpChatMigrate`, which dry-runs or applies explicit migration of chat-shaped root-level timestamp files into the canonical year/month layout.
 
 The extracted modules attach these functions to the same `M` table used by `require("gp")`, preserving existing public aliases.
 

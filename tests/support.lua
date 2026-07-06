@@ -125,6 +125,7 @@ local expected_commands = {
 	"GpAppend",
 	"GpChatDelete",
 	"GpChatFinder",
+	"GpChatMigrate",
 	"GpChatNew",
 	"GpChatPaste",
 	"GpChatRespond",
