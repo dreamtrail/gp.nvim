@@ -6,13 +6,47 @@ local storage = require("gp.chat.storage")
 
 local M = {}
 
+local compact_timestamp_label = function(relative, include_seconds)
+	local name = (relative or ""):match("([^/]+)$") or ""
+	local date, hour, minute, second = name:match("^(%d%d%d%d%-%d%d%-%d%d)%.(%d%d)%-(%d%d)%-(%d%d)%.%d%d%d%.md$")
+	if not date then
+		date, hour, minute, second = name:match("^(%d%d%d%d%-%d%d%-%d%d)%.(%d%d)%-(%d%d)%-(%d%d)%.md$")
+	end
+	if not date then
+		return nil
+	end
+	if include_seconds then
+		return string.format("%s %s:%s:%s", date, hour, minute, second)
+	end
+	return string.format("%s %s:%s", date, hour, minute)
+end
+
+local clean_topic = function(line)
+	local text = (line or ""):gsub("^%s*(.-)%s*$", "%1")
+	text = text:gsub("^#%s*[Tt][Oo][Pp][Ii][Cc]%s*:%s*", "")
+	text = text:gsub("^#%s*", "")
+	return text
+end
+
+local picker_line = function(result, is_default_query)
+	local label = compact_timestamp_label(result.relative, not is_default_query)
+	if not label then
+		return string.format("%s:%s %s", result.relative, result.lnum, result.line)
+	end
+	if is_default_query then
+		return string.format("%s  %s", label, clean_topic(result.line))
+	end
+	return string.format("%s  L%s  %s", label, result.lnum, result.line)
+end
+
 M.setup = function(gp)
 	local M = gp
 M._chat_finder_opened = false
 M._chat_finder_collect = function(dir, cmd, default_pattern)
 	local results = {}
 	local re = ""
-	if storage.is_default_finder_query(cmd, default_pattern) then
+	local is_default_query = storage.is_default_finder_query(cmd, default_pattern)
+	if is_default_query then
 		for _, chat in ipairs(storage.list_canonical_chats(dir)) do
 			table.insert(results, {
 				path = chat.path,
@@ -32,7 +66,7 @@ M._chat_finder_collect = function(dir, cmd, default_pattern)
 		if f.line:len() > 0 then
 			table.insert(files, f.path)
 			table.insert(preview_lines, tonumber(f.lnum))
-			table.insert(picker_lines, string.format("%s:%s %s", f.relative, f.lnum, f.line))
+			table.insert(picker_lines, picker_line(f, is_default_query))
 		end
 	end
 	return { files = files, preview_lines = preview_lines, picker_lines = picker_lines, regex = re }

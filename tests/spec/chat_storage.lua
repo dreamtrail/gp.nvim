@@ -81,7 +81,7 @@ test("finder collection uses default fast path and canonical-only search", funct
 	with_temp_chat_dir(function(dir)
 		local nested = dir .. "/2026/07/2026-07-06.14-23-01.123.md"
 		local flat = dir .. "/2026-07-06.15-00-00.123.md"
-		write_chat(nested, "Default Topic")
+		write_chat(nested, "topic: Default Topic")
 		write_chat(flat, "Flat Topic")
 
 		with_stub(gp.tasker, "grep_directory", function()
@@ -90,13 +90,15 @@ test("finder collection uses default fast path and canonical-only search", funct
 			local collected = gp._chat_finder_collect(dir, gp.config.chat_finder_pattern, gp.config.chat_finder_pattern)
 			assert_eq(#collected.files, 1, "default finder lists only canonical chats")
 			assert_eq(collected.files[1], nested, "default finder stores absolute nested path")
-			assert_true(collected.picker_lines[1]:match("2026/07/2026%-07%-06"), "default finder displays relative nested path")
+			assert_eq(collected.picker_lines[1], "2026-07-06 14:23  Default Topic", "default finder displays compact topic label")
 		end)
 
 		local collected = gp._chat_finder_collect(dir, "Flat", gp.config.chat_finder_pattern)
 		assert_eq(#collected.files, 0, "finder custom search excludes flat chats")
 		collected = gp._chat_finder_collect(dir, "Default", gp.config.chat_finder_pattern)
 		assert_true(#collected.files > 0, "finder custom search includes canonical chats")
+		assert_eq(collected.files[1], nested, "custom finder search stores absolute nested path")
+		assert_eq(collected.picker_lines[1], "2026-07-06 14:23:01  L1  # topic: Default Topic", "custom finder displays compact timestamp and line number")
 	end)
 end)
 
